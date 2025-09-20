@@ -18,7 +18,7 @@ class PDFUploader {
         this.initializeQuizTool();
         this.initializePrintTool();
         this.initializeFormTool();
-        this.initializeCommentTool();
+        this.initializeFlashcardTool();
     }
     
     initializeElements() {
@@ -294,8 +294,6 @@ class PDFUploader {
             this.updatePageControls();
             this.updateZoomControls();
             
-            // Load comments for this PDF
-            this.loadComments();
             
             this.hideStatus();
             
@@ -338,19 +336,10 @@ class PDFUploader {
         
         await page.render(renderContext).promise;
         
-        // Render text layer for text selection
-        await this.renderTextLayer(page, viewport);
         
         // Ensure scrolling works
         this.setupScrolling();
         
-        // Create comment overlay if it doesn't exist
-        if (!this.commentState.selectionOverlay) {
-            this.createCommentOverlay();
-        }
-        
-        // Render highlights for current page
-        this.renderHighlights();
     }
     
     setupScrolling() {
@@ -1649,9 +1638,7 @@ Generate ${questionCount} questions:`;
         const closeFormBtn = document.getElementById('close-form-btn');
         const textToolBtn = document.getElementById('text-tool-btn');
         const signatureToolBtn = document.getElementById('signature-tool-btn');
-        const checkboxToolBtn = document.getElementById('checkbox-tool-btn');
         const clearToolBtn = document.getElementById('clear-tool-btn');
-        const saveFormBtn = document.getElementById('save-form-btn');
         const downloadFormBtn = document.getElementById('download-form-btn');
         const resetFormBtn = document.getElementById('reset-form-btn');
         const fontSizeSelect = document.getElementById('fontSize');
@@ -1673,17 +1660,11 @@ Generate ${questionCount} questions:`;
             signatureToolBtn.addEventListener('click', () => this.setActiveTool('signature'));
         }
         
-        if (checkboxToolBtn) {
-            checkboxToolBtn.addEventListener('click', () => this.setActiveTool('checkbox'));
-        }
         
         if (clearToolBtn) {
             clearToolBtn.addEventListener('click', () => this.clearAllFormElements());
         }
         
-        if (saveFormBtn) {
-            saveFormBtn.addEventListener('click', () => this.saveFilledPDF());
-        }
         
         if (downloadFormBtn) {
             downloadFormBtn.addEventListener('click', () => this.downloadFilledPDF());
@@ -1854,8 +1835,6 @@ Generate ${questionCount} questions:`;
     handleCanvasClick(e) {
         if (this.formState.currentTool === 'text') {
             this.addTextElement(e);
-        } else if (this.formState.currentTool === 'checkbox') {
-            this.addCheckboxElement(e);
         }
     }
     
@@ -1912,31 +1891,6 @@ Generate ${questionCount} questions:`;
         });
     }
     
-    addCheckboxElement(e) {
-        const rect = this.formState.canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        const checkbox = document.createElement('div');
-        checkbox.className = 'form-checkbox';
-        checkbox.style.left = x + 'px';
-        checkbox.style.top = y + 'px';
-        
-        checkbox.addEventListener('click', () => {
-            checkbox.classList.toggle('checked');
-        });
-        
-        this.formState.overlay.appendChild(checkbox);
-        
-        // Add to form elements
-        this.formState.formElements.push({
-            type: 'checkbox',
-            x: x,
-            y: y,
-            element: checkbox,
-            checked: false
-        });
-    }
     
     startSignature(x, y) {
         const canvas = this.formState.canvas;
@@ -2038,31 +1992,6 @@ Generate ${questionCount} questions:`;
         }
     }
     
-    async saveFilledPDF() {
-        try {
-            // Create a new PDF with form elements
-            const filledPDF = await this.generateFilledPDF();
-            
-            // Save to localStorage or send to server
-            localStorage.setItem('filledPDF_' + Date.now(), JSON.stringify({
-                originalFile: this.files[0].name,
-                formElements: this.formState.formElements.map(el => ({
-                    type: el.type,
-                    x: el.x,
-                    y: el.y,
-                    properties: el.properties,
-                    checked: el.checked,
-                    content: el.element ? el.element.value || el.element.textContent : ''
-                })),
-                timestamp: new Date().toISOString()
-            }));
-            
-            alert('Form saved successfully!');
-        } catch (error) {
-            console.error('Error saving form:', error);
-            alert('Error saving form. Please try again.');
-        }
-    }
     
     async downloadFilledPDF() {
         try {
@@ -2099,1061 +2028,551 @@ Generate ${questionCount} questions:`;
         return this.formState.canvas.toDataURL();
     }
     
-    // Comment Tool Methods
-    initializeCommentTool() {
-        // Initialize comment functionality
-        this.initializeCommentFunctionality();
+    // Flashcard Tool Methods
+    initializeFlashcardTool() {
+        // Create flashcard button
+        const flashcardButton = document.createElement('button');
+        flashcardButton.className = 'flashcard-btn';
+        flashcardButton.innerHTML = '🎴 Flashcards';
+        flashcardButton.addEventListener('click', () => this.openFlashcardDialog());
+        
+        // Add the button to the PDF controls
+        const flashcardContainer = document.getElementById('flashcard-button-container');
+        if (flashcardContainer) {
+            flashcardContainer.appendChild(flashcardButton);
+        }
+        
+        // Initialize flashcard functionality
+        this.initializeFlashcardFunctionality();
     }
     
-    initializeCommentFunctionality() {
-        // Comment state
-        this.commentState = {
-            comments: [],
-            selectionOverlay: null,
-            contextMenu: null,
-            selectedText: '',
-            currentSelection: null,
-            isSidebarOpen: false
+    initializeFlashcardFunctionality() {
+        // Flashcard state
+        this.flashcardState = {
+            isOpen: false,
+            flashcards: [],
+            currentCardIndex: 0,
+            correctCount: 0,
+            incorrectCount: 0,
+            incorrectCards: [],
+            isFlipped: false,
+            isReviewMode: false,
+            reviewIndex: 0,
+            cardCount: 15,
+            difficulty: 'intermediate'
         };
         
-        // Bind comment events
-        this.bindCommentEvents();
+        // Bind flashcard events
+        this.bindFlashcardEvents();
     }
     
-    bindCommentEvents() {
-        // Initialize context menu
-        this.initializeContextMenu();
+    bindFlashcardEvents() {
+        const closeFlashcardBtn = document.getElementById('close-flashcard-btn');
+        const generateFlashcardsBtn = document.getElementById('generate-flashcards-btn');
+        const markCorrectBtn = document.getElementById('markCorrect-btn');
+        const markIncorrectBtn = document.getElementById('markIncorrect-btn');
+        const replayIncorrectBtn = document.getElementById('replay-incorrect-btn');
+        const newFlashcardsBtn = document.getElementById('new-flashcards-btn');
+        const closeFlashcardsBtn = document.getElementById('close-flashcards-btn');
+        const reviewCorrectBtn = document.getElementById('reviewCorrect-btn');
+        const reviewIncorrectBtn = document.getElementById('reviewIncorrect-btn');
+        const flashcardCountSelect = document.getElementById('flashcardCount');
+        const flashcardDifficultySelect = document.getElementById('flashcardDifficulty');
         
-        // Bind sidebar events
-        const toggleSidebarBtn = document.getElementById('toggle-comment-sidebar');
-        if (toggleSidebarBtn) {
-            toggleSidebarBtn.addEventListener('click', () => this.toggleCommentSidebar());
+        if (closeFlashcardBtn) {
+            closeFlashcardBtn.addEventListener('click', () => this.closeFlashcardDialog());
         }
         
-        // Create overlay immediately when PDF loads
-        this.createCommentOverlay();
-    }
-    
-    createCommentOverlay() {
-        const pdfContainer = document.querySelector('.pdf-container-fullscreen');
-        if (!pdfContainer) {
-            console.error('PDF container not found');
-            return;
+        if (generateFlashcardsBtn) {
+            generateFlashcardsBtn.addEventListener('click', () => this.generateFlashcards());
         }
         
-        // Remove existing overlay if it exists
-        const existingOverlay = document.getElementById('commentOverlay');
-        if (existingOverlay) {
-            existingOverlay.remove();
+        if (markCorrectBtn) {
+            markCorrectBtn.addEventListener('click', () => this.markCardCorrect());
         }
         
-        // Create new overlay
-        const overlay = document.createElement('div');
-        overlay.id = 'commentOverlay';
-        overlay.className = 'comment-overlay';
-        overlay.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 100;
-            background: transparent;
-        `;
-        
-        pdfContainer.appendChild(overlay);
-        this.commentState.selectionOverlay = overlay;
-        
-        // Bind events only to the PDF container for right-click
-        pdfContainer.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            
-            // Check if text is selected
-            const selection = window.getSelection();
-            const selectedText = selection.toString().trim();
-            
-            if (selectedText) {
-                this.commentState.selectedText = selectedText;
-                this.commentState.currentSelection = selection;
-                this.showContextMenu(e);
-            } else {
-                // If no text selected, try to enable text selection
-                this.enableTextSelection();
-            }
-        });
-        
-        // Add click handler to enable text selection
-        pdfContainer.addEventListener('click', (e) => {
-            // Enable text selection on PDF canvas
-            this.enableTextSelection();
-        });
-        
-        console.log('Comment overlay created');
-    }
-    
-    enableTextSelection() {
-        // Enable text selection on the PDF canvas
-        const canvas = this.pdfCanvas;
-        if (canvas) {
-            canvas.style.userSelect = 'text';
-            canvas.style.webkitUserSelect = 'text';
-            canvas.style.mozUserSelect = 'text';
-            canvas.style.msUserSelect = 'text';
-        }
-    }
-    
-    async renderTextLayer(page, viewport) {
-        const textLayerDiv = document.getElementById('textLayer');
-        
-        if (!textLayerDiv) {
-            // Create text layer if it doesn't exist
-            const textLayer = document.createElement('div');
-            textLayer.id = 'textLayer';
-            textLayer.className = 'textLayer';
-            textLayer.style.cssText = `
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: auto;
-                user-select: text;
-                z-index: 10;
-            `;
-            
-            const pdfContainer = document.querySelector('.pdf-container-fullscreen');
-            if (pdfContainer) {
-                pdfContainer.appendChild(textLayer);
-            }
+        if (markIncorrectBtn) {
+            markIncorrectBtn.addEventListener('click', () => this.markCardIncorrect());
         }
         
-        // Get text content from the page
-        const textContent = await page.getTextContent();
-        const textLayer = document.getElementById('textLayer');
-        
-        if (textLayer) {
-            // Clear existing text
-            textLayer.innerHTML = '';
-            
-            // Create text items
-            const textItems = textContent.items;
-            for (let i = 0; i < textItems.length; i++) {
-                const textItem = textItems[i];
-                const textDiv = document.createElement('div');
-                
-                // Transform text coordinates to match the viewport
-                const transform = viewport.transform;
-                const tx = transform[4];
-                const ty = transform[5];
-                const scaleX = transform[0];
-                const scaleY = transform[3];
-                
-                textDiv.style.cssText = `
-                    position: absolute;
-                    left: ${textItem.transform[4]}px;
-                    top: ${textItem.transform[5]}px;
-                    font-size: ${textItem.transform[0]}px;
-                    font-family: ${textItem.fontName || 'sans-serif'};
-                    color: transparent;
-                    user-select: text;
-                    pointer-events: auto;
-                    white-space: pre;
-                `;
-                
-                textDiv.textContent = textItem.str;
-                textLayer.appendChild(textDiv);
-            }
+        if (replayIncorrectBtn) {
+            replayIncorrectBtn.addEventListener('click', () => this.startReviewMode());
         }
-    }
-    
-    toggleCommentSidebar() {
-        const sidebar = document.getElementById('commentSidebar');
-        if (!sidebar) return;
         
-        if (this.commentState.isSidebarOpen) {
-            this.closeCommentSidebar();
-        } else {
-            this.openCommentSidebar();
+        if (newFlashcardsBtn) {
+            newFlashcardsBtn.addEventListener('click', () => this.newFlashcardSet());
         }
-    }
-    
-    openCommentSidebar() {
-        const sidebar = document.getElementById('commentSidebar');
-        if (sidebar) {
-            sidebar.style.display = 'flex';
-            this.commentState.isSidebarOpen = true;
-            this.renderComments();
-            
-            // Update toggle button text
-            const toggleBtn = document.getElementById('toggle-comment-sidebar');
-            if (toggleBtn) {
-                toggleBtn.textContent = 'Hide';
-            }
-        }
-    }
-    
-    closeCommentSidebar() {
-        const sidebar = document.getElementById('commentSidebar');
-        if (sidebar) {
-            sidebar.style.display = 'none';
-            this.commentState.isSidebarOpen = false;
-            
-            // Update toggle button text
-            const toggleBtn = document.getElementById('toggle-comment-sidebar');
-            if (toggleBtn) {
-                toggleBtn.textContent = 'Show';
-            }
-        }
-    }
-    
-    initializeContextMenu() {
-        const contextMenu = document.getElementById('commentContextMenu');
-        this.commentState.contextMenu = contextMenu;
         
-        // Bind context menu events
-        const addCommentContext = document.getElementById('addCommentContext');
-        const copyTextContext = document.getElementById('copyTextContext');
+        if (closeFlashcardsBtn) {
+            closeFlashcardsBtn.addEventListener('click', () => this.closeFlashcardDialog());
+        }
         
-        if (addCommentContext) {
-            addCommentContext.addEventListener('click', () => {
-                this.hideContextMenu();
-                if (this.commentState.selectedText) {
-                    this.showCommentModalForSelection();
+        if (reviewCorrectBtn) {
+            reviewCorrectBtn.addEventListener('click', () => this.markReviewCorrect());
+        }
+        
+        if (reviewIncorrectBtn) {
+            reviewIncorrectBtn.addEventListener('click', () => this.markReviewIncorrect());
+        }
+        
+        if (flashcardCountSelect) {
+            flashcardCountSelect.addEventListener('change', (e) => {
+                this.flashcardState.cardCount = parseInt(e.target.value);
+            });
+        }
+        
+        if (flashcardDifficultySelect) {
+            flashcardDifficultySelect.addEventListener('change', (e) => {
+                this.flashcardState.difficulty = e.target.value;
+            });
+        }
+        
+        // Close dialog on background click
+        const flashcardDialog = document.getElementById('flashcardDialog');
+        if (flashcardDialog) {
+            flashcardDialog.addEventListener('click', (e) => {
+                if (e.target === flashcardDialog) {
+                    this.closeFlashcardDialog();
                 }
             });
         }
         
-        if (copyTextContext) {
-            copyTextContext.addEventListener('click', () => {
-                this.hideContextMenu();
-                this.copySelectedText();
-            });
-        }
-        
-        // Hide context menu when clicking elsewhere
-        document.addEventListener('click', () => this.hideContextMenu());
-        document.addEventListener('contextmenu', (e) => {
-            // Only show context menu on PDF canvas
-            if (!e.target.closest('#pdfCanvas') && !e.target.closest('.text-selection-overlay')) {
-                this.hideContextMenu();
-            }
-        });
+        // Card flip events
+        this.bindCardFlipEvents();
     }
     
-    showContextMenu(e) {
-        e.preventDefault();
+    bindCardFlipEvents() {
+        // Bind flip events to current card
+        const currentCard = document.getElementById('currentCard');
+        const reviewCard = document.getElementById('reviewCard');
         
-        const contextMenu = this.commentState.contextMenu;
-        if (!contextMenu) return;
+        if (currentCard) {
+            currentCard.addEventListener('click', () => this.flipCard());
+        }
         
-        // Get selected text
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
-        
-        if (!selectedText) {
-            this.hideContextMenu();
+        if (reviewCard) {
+            reviewCard.addEventListener('click', () => this.flipReviewCard());
+        }
+    }
+    
+    openFlashcardDialog() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
             return;
         }
         
-        this.commentState.selectedText = selectedText;
-        this.commentState.currentSelection = selection;
-        
-        // Position context menu
-        contextMenu.style.left = e.pageX + 'px';
-        contextMenu.style.top = e.pageY + 'px';
-        contextMenu.style.display = 'block';
-        
-        console.log('Context menu shown for text:', selectedText);
-    }
-    
-    hideContextMenu() {
-        const contextMenu = this.commentState.contextMenu;
-        if (contextMenu) {
-            contextMenu.style.display = 'none';
+        const flashcardDialog = document.getElementById('flashcardDialog');
+        if (flashcardDialog) {
+            flashcardDialog.style.display = 'flex';
+            this.flashcardState.isOpen = true;
+            this.showGenerationSection();
         }
     }
     
-    copySelectedText() {
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
-        
-        if (selectedText) {
-            navigator.clipboard.writeText(selectedText).then(() => {
-                // Show temporary feedback
-                this.showTemporaryMessage('Text copied to clipboard!');
-            }).catch(() => {
-                // Fallback for older browsers
-                const textArea = document.createElement('textarea');
-                textArea.value = selectedText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                this.showTemporaryMessage('Text copied to clipboard!');
-            });
+    closeFlashcardDialog() {
+        const flashcardDialog = document.getElementById('flashcardDialog');
+        if (flashcardDialog) {
+            flashcardDialog.style.display = 'none';
+            this.flashcardState.isOpen = false;
         }
     }
     
-    showTemporaryMessage(message) {
-        const messageDiv = document.createElement('div');
-        messageDiv.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ffc107;
-            color: #000;
-            padding: 1rem 1.5rem;
-            border: 2px solid #000;
-            border-radius: 8px;
-            font-weight: 600;
-            z-index: 4000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        `;
-        messageDiv.textContent = message;
+    showGenerationSection() {
+        const generationSection = document.getElementById('flashcardGenerationSection');
+        const studySection = document.getElementById('flashcardStudySection');
+        const resultsSection = document.getElementById('flashcardResultsSection');
+        const reviewSection = document.getElementById('flashcardReviewSection');
         
-        document.body.appendChild(messageDiv);
-        
-        setTimeout(() => {
-            document.body.removeChild(messageDiv);
-        }, 2000);
+        if (generationSection) generationSection.style.display = 'block';
+        if (studySection) studySection.style.display = 'none';
+        if (resultsSection) resultsSection.style.display = 'none';
+        if (reviewSection) reviewSection.style.display = 'none';
     }
     
-    showCommentModalForSelection() {
-        const selectedText = this.commentState.selectedText;
-        const selection = this.commentState.currentSelection;
+    showStudySection() {
+        const generationSection = document.getElementById('flashcardGenerationSection');
+        const studySection = document.getElementById('flashcardStudySection');
+        const resultsSection = document.getElementById('flashcardResultsSection');
+        const reviewSection = document.getElementById('flashcardReviewSection');
         
-        if (!selectedText || !selection) return;
-        
-        // Get selection bounds
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        const pdfContainer = document.querySelector('.pdf-container-fullscreen');
-        const containerRect = pdfContainer.getBoundingClientRect();
-        
-        const position = {
-            left: rect.left - containerRect.left,
-            top: rect.top - containerRect.top,
-            width: rect.width,
-            height: rect.height
-        };
-        
-        // Create modal
-        const modal = document.createElement('div');
-        modal.className = 'comment-modal';
-        modal.id = 'commentModal';
-        
-        modal.innerHTML = `
-            <div class="comment-modal-content">
-                <div class="comment-modal-header">
-                    <h3>💬 Add Comment</h3>
-                    <button class="comment-modal-close">&times;</button>
-                </div>
-                <div class="comment-modal-body">
-                    <div class="comment-highlighted-text-preview">
-                        "${selectedText.substring(0, 100)}${selectedText.length > 100 ? '...' : ''}"
-                    </div>
-                    <textarea class="comment-textarea" placeholder="Enter your comment about the selected text..." id="commentText"></textarea>
-                </div>
-                <div class="comment-modal-actions">
-                    <button class="comment-modal-btn cancel">Cancel</button>
-                    <button class="comment-modal-btn save">Add Comment</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // Bind modal events
-        const closeBtn = modal.querySelector('.comment-modal-close');
-        const cancelBtn = modal.querySelector('.cancel');
-        const saveBtn = modal.querySelector('.save');
-        const textarea = modal.querySelector('#commentText');
-        
-        const closeModal = () => {
-            modal.remove();
-            this.hideContextMenu();
-        };
-        
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
-        
-        saveBtn.addEventListener('click', () => {
-            const text = textarea.value.trim();
-            if (text) {
-                this.addComment(text, position, selectedText);
-                closeModal();
-            } else {
-                alert('Please enter a comment.');
-            }
-        });
-        
-        // Focus textarea
-        textarea.focus();
-        
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
+        if (generationSection) generationSection.style.display = 'none';
+        if (studySection) studySection.style.display = 'block';
+        if (resultsSection) resultsSection.style.display = 'none';
+        if (reviewSection) reviewSection.style.display = 'none';
     }
     
-    addComment(text, position, selectedText) {
-        const comment = {
-            id: Date.now(),
-            text: text,
-            position: position,
-            page: this.currentPage,
-            timestamp: new Date().toISOString(),
-            highlightedText: selectedText
-        };
+    showResultsSection() {
+        const generationSection = document.getElementById('flashcardGenerationSection');
+        const studySection = document.getElementById('flashcardStudySection');
+        const resultsSection = document.getElementById('flashcardResultsSection');
+        const reviewSection = document.getElementById('flashcardReviewSection');
         
-        console.log('Adding comment:', comment);
-        
-        // Add to comments array
-        this.commentState.comments.push(comment);
-        
-        // Create yellow comment box
-        this.createCommentBox(comment);
-        
-        // Auto-show sidebar when comment is added
-        if (!this.commentState.isSidebarOpen) {
-            this.openCommentSidebar();
-        }
-        
-        // Render sidebar comments
-        this.renderComments();
-        
-        // Save to localStorage
-        this.saveComments();
-        
-        console.log('Comment added successfully. Total comments:', this.commentState.comments.length);
+        if (generationSection) generationSection.style.display = 'none';
+        if (studySection) studySection.style.display = 'none';
+        if (resultsSection) resultsSection.style.display = 'block';
+        if (reviewSection) reviewSection.style.display = 'none';
     }
     
-    createCommentBox(comment) {
-        const overlay = this.commentState.selectionOverlay;
-        if (!overlay) {
-            console.error('No overlay found when creating comment box');
+    showReviewSection() {
+        const generationSection = document.getElementById('flashcardGenerationSection');
+        const studySection = document.getElementById('flashcardStudySection');
+        const resultsSection = document.getElementById('flashcardResultsSection');
+        const reviewSection = document.getElementById('flashcardReviewSection');
+        
+        if (generationSection) generationSection.style.display = 'none';
+        if (studySection) studySection.style.display = 'none';
+        if (resultsSection) resultsSection.style.display = 'none';
+        if (reviewSection) reviewSection.style.display = 'block';
+    }
+    
+    async generateFlashcards() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
             return;
         }
         
-        // Create comment box
-        const commentBox = document.createElement('div');
-        commentBox.className = 'comment-box';
-        commentBox.dataset.commentId = comment.id;
+        this.showFlashcardLoading();
         
-        // Position and size the box based on selection
-        const boxLeft = comment.position.left;
-        const boxTop = comment.position.top;
-        const boxWidth = Math.max(comment.position.width, 60);
-        const boxHeight = Math.max(comment.position.height, 30);
-        
-        commentBox.style.cssText = `
-            position: absolute;
-            left: ${boxLeft}px;
-            top: ${boxTop}px;
-            width: ${boxWidth}px;
-            height: ${boxHeight}px;
-            pointer-events: auto;
-            z-index: 200;
-        `;
-        
-        // Create hover content
-        const content = document.createElement('div');
-        content.className = 'comment-box-content';
-        content.innerHTML = `
-            <div style="font-weight: 600; margin-bottom: 0.5rem; color: #333;">
-                💬 Comment
-            </div>
-            <div style="margin-bottom: 0.5rem; color: #555;">
-                ${comment.text}
-            </div>
-            <div style="font-size: 0.8rem; color: #888;">
-                ${new Date(comment.timestamp).toLocaleString()}
-            </div>
-        `;
-        
-        commentBox.appendChild(content);
-        
-        // Make box draggable and resizable
-        this.makeBoxDraggable(commentBox);
-        
-        console.log('Creating comment box at:', boxLeft, boxTop, 'size:', boxWidth, 'x', boxHeight, 'for comment:', comment.id);
-        
-        // Add to overlay
-        overlay.appendChild(commentBox);
-        
-        console.log('Comment box created and added to overlay');
-    }
-    
-    makeBoxDraggable(box) {
-        let isDragging = false;
-        let isResizing = false;
-        let startX, startY, startWidth, startHeight, startLeft, startTop;
-        
-        // Mouse down
-        box.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+        try {
+            // Extract text from PDF
+            const pdfText = await this.extractPDFText();
             
-            const rect = box.getBoundingClientRect();
-            const overlay = this.commentState.selectionOverlay;
-            const overlayRect = overlay.getBoundingClientRect();
+            if (!pdfText || pdfText.trim().length === 0) {
+                throw new Error('No text found in PDF. Cannot generate flashcards.');
+            }
             
-            // Check if clicking on resize handle (bottom-right corner)
-            const isResizeHandle = e.offsetX > rect.width - 10 && e.offsetY > rect.height - 10;
+            // Generate flashcards using Gemini AI
+            const flashcards = await this.generateFlashcardQuestions(pdfText);
             
-            if (isResizeHandle) {
-                isResizing = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                startWidth = rect.width;
-                startHeight = rect.height;
-            } else {
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                startLeft = rect.left - overlayRect.left;
-                startTop = rect.top - overlayRect.top;
-            }
-        });
-        
-        // Mouse move
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging && !isResizing) return;
+            this.flashcardState.flashcards = flashcards;
+            this.flashcardState.currentCardIndex = 0;
+            this.flashcardState.correctCount = 0;
+            this.flashcardState.incorrectCount = 0;
+            this.flashcardState.incorrectCards = [];
+            this.flashcardState.isFlipped = false;
             
-            e.preventDefault();
+            this.hideFlashcardLoading();
+            this.showStudySection();
+            this.displayCurrentCard();
             
-            if (isDragging) {
-                const overlay = this.commentState.selectionOverlay;
-                const overlayRect = overlay.getBoundingClientRect();
-                
-                const newLeft = startLeft + (e.clientX - startX);
-                const newTop = startTop + (e.clientY - startY);
-                
-                box.style.left = newLeft + 'px';
-                box.style.top = newTop + 'px';
-            } else if (isResizing) {
-                const newWidth = Math.max(20, startWidth + (e.clientX - startX));
-                const newHeight = Math.max(20, startHeight + (e.clientY - startY));
-                
-                box.style.width = newWidth + 'px';
-                box.style.height = newHeight + 'px';
-            }
-        });
-        
-        // Mouse up
-        document.addEventListener('mouseup', () => {
-            if (isDragging || isResizing) {
-                isDragging = false;
-                isResizing = false;
-                
-                // Update comment position in array
-                const commentId = parseInt(box.dataset.commentId);
-                const comment = this.commentState.comments.find(c => c.id === commentId);
-                if (comment) {
-                    comment.position = {
-                        left: parseInt(box.style.left),
-                        top: parseInt(box.style.top),
-                        width: parseInt(box.style.width),
-                        height: parseInt(box.style.height)
-                    };
-                    this.saveComments();
-                }
-            }
-        });
-    }
-    
-    renderComments() {
-        const commentList = document.getElementById('commentList');
-        if (!commentList) return;
-        
-        if (this.commentState.comments.length === 0) {
-            commentList.innerHTML = `
-                <div class="no-comments">
-                    <p>No comments yet. Select text and right-click to add comments.</p>
-                </div>
-            `;
-            return;
-        }
-        
-        commentList.innerHTML = '';
-        
-        this.commentState.comments.forEach(comment => {
-            const commentElement = this.createCommentElement(comment);
-            commentList.appendChild(commentElement);
-        });
-    }
-    
-    createCommentElement(comment) {
-        const div = document.createElement('div');
-        div.className = 'comment-item';
-        div.dataset.commentId = comment.id;
-        
-        const date = new Date(comment.timestamp).toLocaleDateString();
-        const time = new Date(comment.timestamp).toLocaleTimeString();
-        
-        div.innerHTML = `
-            <div class="comment-highlighted-text">${comment.highlightedText.substring(0, 50)}${comment.highlightedText.length > 50 ? '...' : ''}</div>
-            <div class="comment-content">${comment.text}</div>
-            <div class="comment-meta">
-                <span>Page ${comment.page} • ${date} at ${time}</span>
-                <div class="comment-actions">
-                    <button class="view-btn" data-comment-id="${comment.id}">View</button>
-                    <button class="delete-btn" data-comment-id="${comment.id}">Delete</button>
-                </div>
-            </div>
-        `;
-        
-        // Bind actions
-        const viewBtn = div.querySelector('.view-btn');
-        const deleteBtn = div.querySelector('.delete-btn');
-        
-        viewBtn.addEventListener('click', () => {
-            this.highlightComment(comment.id);
-            this.scrollToPage(comment.page);
-        });
-        
-        deleteBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to delete this comment?')) {
-                this.deleteComment(comment.id);
-            }
-        });
-        
-        return div;
-    }
-    
-    highlightComment(commentId) {
-        // Remove existing highlights
-        document.querySelectorAll('.comment-item.highlighted').forEach(item => {
-            item.classList.remove('highlighted');
-        });
-        
-        // Highlight the comment in sidebar
-        const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
-        if (commentElement) {
-            commentElement.classList.add('highlighted');
-            commentElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        
-        // Highlight the corresponding box on PDF
-        const commentBox = document.querySelector(`.comment-box[data-comment-id="${commentId}"]`);
-        if (commentBox) {
-            commentBox.style.background = 'rgba(255, 193, 7, 0.7)';
-            commentBox.style.borderColor = '#ffca2c';
-            commentBox.style.boxShadow = '0 0 10px rgba(255, 193, 7, 0.5)';
+        } catch (error) {
+            console.error('Flashcard generation error:', error);
+            this.hideFlashcardLoading();
+            alert('Error generating flashcards: ' + error.message);
         }
     }
     
-    scrollToPage(pageNumber) {
-        if (pageNumber !== this.currentPage) {
-            this.currentPage = pageNumber;
-            this.renderPage();
-            this.updatePageControls();
+    async extractPDFText() {
+        let fullText = '';
+        for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+            const page = await this.currentPDF.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n\n';
         }
+        return fullText.trim();
     }
     
-    createCommentPopup(comment) {
-        const popup = document.createElement('div');
-        popup.className = 'comment-popup';
-        
-        const date = new Date(comment.timestamp).toLocaleDateString();
-        const time = new Date(comment.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        popup.innerHTML = `
-            <div class="comment-popup-header">
-                <div class="comment-popup-author">You</div>
-                <div class="comment-popup-time">${date} ${time}</div>
-                <button class="comment-popup-close">&times;</button>
-            </div>
-            <div class="comment-popup-content">
-                <div class="comment-popup-text">${comment.text}</div>
-                <div class="comment-popup-actions">
-                    <button class="comment-popup-btn edit" data-comment-id="${comment.id}">Edit</button>
-                    <button class="comment-popup-btn delete" data-comment-id="${comment.id}">Delete</button>
-                </div>
-            </div>
-        `;
-        
-        // Bind popup events
-        const closeBtn = popup.querySelector('.comment-popup-close');
-        const editBtn = popup.querySelector('.edit');
-        const deleteBtn = popup.querySelector('.delete');
-        
-        closeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.hideCommentPopup(popup.parentElement);
-        });
-        
-        editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.editInlineComment(comment.id);
-            this.hideCommentPopup(popup.parentElement);
-        });
-        
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (confirm('Are you sure you want to delete this comment?')) {
-                this.deleteComment(comment.id);
-            }
-        });
-        
-        return popup;
-    }
-    
-    showCommentPopup(commentIcon) {
-        const popup = commentIcon.querySelector('.comment-popup');
-        if (popup) {
-            popup.classList.add('show');
+    async generateFlashcardQuestions(pdfText) {
+        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
+        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            throw new Error('Please configure your Gemini API key in config.js');
         }
-    }
-    
-    hideCommentPopup(commentIcon) {
-        const popup = commentIcon.querySelector('.comment-popup');
-        if (popup) {
-            popup.classList.remove('show');
-        }
-    }
-    
-    toggleCommentPopup(commentIcon) {
-        const popup = commentIcon.querySelector('.comment-popup');
-        if (popup) {
-            if (popup.classList.contains('show')) {
-                this.hideCommentPopup(commentIcon);
-            } else {
-                this.showCommentPopup(commentIcon);
-            }
-        }
-    }
-    
-    editInlineComment(commentId) {
-        const comment = this.commentState.comments.find(c => c.id === commentId);
-        if (!comment) return;
         
-        const newText = prompt('Edit comment:', comment.text);
-        if (newText !== null && newText.trim() !== '') {
-            comment.text = newText.trim();
-            
-            // Update the popup display
-            const commentIcon = document.querySelector(`.comment-icon[data-comment-id="${commentId}"]`);
-            if (commentIcon) {
-                const popup = commentIcon.querySelector('.comment-popup');
-                if (popup) {
-                    const commentText = popup.querySelector('.comment-popup-text');
-                    if (commentText) {
-                        commentText.textContent = comment.text;
+        const cardCount = this.flashcardState.cardCount;
+        const difficulty = this.flashcardState.difficulty;
+        
+        const prompt = `Generate ${cardCount} flashcards based on the following PDF text content. 
+
+Difficulty Level: ${difficulty}
+- Basic: Simple facts, definitions, key terms
+- Intermediate: Concepts, relationships, processes
+- Advanced: Complex analysis, applications, synthesis
+
+Requirements:
+1. Create question-answer pairs that test understanding of key concepts
+2. Questions should be clear and specific
+3. Answers should be concise but comprehensive
+4. Focus on the most important information from the text
+5. Include a mix of fact-based and conceptual questions
+6. Make sure all information is directly from the provided text
+
+Format the response as a JSON array with this structure:
+[
+  {
+    "question": "What is the question here?",
+    "answer": "The detailed answer here."
+  }
+]
+
+PDF Text Content:
+${pdfText}
+
+Generate ${cardCount} flashcards:`;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 2048,
                     }
-                }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
             }
+
+            const data = await response.json();
             
-            
-            // Save changes
-            this.saveComments();
-        }
-    }
-    
-    bindTextSelectionEvents() {
-        // Create selection overlay
-        const pdfContainer = document.querySelector('.pdf-container-fullscreen');
-        if (pdfContainer) {
-            const overlay = document.createElement('div');
-            overlay.className = 'text-selection-overlay';
-            overlay.id = 'textSelectionOverlay';
-            overlay.style.pointerEvents = 'auto';
-            overlay.style.position = 'absolute';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100%';
-            overlay.style.height = '100%';
-            overlay.style.zIndex = '100';
-            
-            pdfContainer.appendChild(overlay);
-            
-            this.commentState.selectionOverlay = overlay;
-            
-            // Bind selection events to the overlay (always active)
-            overlay.addEventListener('mousedown', (e) => this.handleSelectionStart(e));
-            overlay.addEventListener('mousemove', (e) => this.handleSelectionMove(e));
-            overlay.addEventListener('mouseup', (e) => this.handleSelectionEnd(e));
-            overlay.addEventListener('contextmenu', (e) => this.showContextMenu(e));
-            
-            // Make overlay always active for text selection
-            overlay.classList.add('active');
-        }
-    }
-    
-    
-    handleSelectionStart(e) {
-        const rect = e.currentTarget.getBoundingClientRect();
-        this.commentState.selectionStart = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-        
-        this.commentState.isSelecting = true;
-        e.preventDefault();
-    }
-    
-    handleSelectionMove(e) {
-        if (!this.commentState.isSelecting) return;
-        
-        const rect = e.currentTarget.getBoundingClientRect();
-        this.commentState.selectionEnd = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-        
-        this.updateSelectionHighlight();
-    }
-    
-    handleSelectionEnd(e) {
-        if (!this.commentState.isSelecting) return;
-        
-        this.commentState.isSelecting = false;
-        
-        // Check if selection is large enough
-        const start = this.commentState.selectionStart;
-        const end = this.commentState.selectionEnd;
-        
-        if (start && end && this.getSelectionArea(start, end) > 100) {
-            this.showCommentModal();
-        } else {
-            this.clearSelection();
-        }
-    }
-    
-    updateSelectionHighlight() {
-        const start = this.commentState.selectionStart;
-        const end = this.commentState.selectionEnd;
-        
-        if (!start || !end) return;
-        
-        const overlay = this.commentState.selectionOverlay;
-        if (!overlay) return;
-        
-        // Clear existing highlights
-        overlay.innerHTML = '';
-        
-        const left = Math.min(start.x, end.x);
-        const top = Math.min(start.y, end.y);
-        const width = Math.abs(end.x - start.x);
-        const height = Math.abs(end.y - start.y);
-        
-        if (width > 5 && height > 5) {
-            const highlight = document.createElement('div');
-            highlight.className = 'selection-highlight';
-            highlight.style.left = left + 'px';
-            highlight.style.top = top + 'px';
-            highlight.style.width = width + 'px';
-            highlight.style.height = height + 'px';
-            
-            overlay.appendChild(highlight);
-        }
-    }
-    
-    getSelectionArea(start, end) {
-        const width = Math.abs(end.x - start.x);
-        const height = Math.abs(end.y - start.y);
-        return width * height;
-    }
-    
-    clearSelection() {
-        const overlay = this.commentState.selectionOverlay;
-        if (overlay) {
-            overlay.innerHTML = '';
-        }
-        this.commentState.selectionStart = null;
-        this.commentState.selectionEnd = null;
-    }
-    
-    showCommentModal() {
-        // Create modal
-        const modal = document.createElement('div');
-        modal.className = 'comment-modal';
-        modal.id = 'commentModal';
-        
-        const start = this.commentState.selectionStart;
-        const end = this.commentState.selectionEnd;
-        const left = Math.min(start.x, end.x);
-        const top = Math.min(start.y, end.y);
-        const width = Math.abs(end.x - start.x);
-        const height = Math.abs(end.y - start.y);
-        
-        modal.innerHTML = `
-            <div class="comment-modal-content">
-                <div class="comment-modal-header">
-                    <h3>💬 Add Comment</h3>
-                    <button class="comment-modal-close">&times;</button>
-                </div>
-                <div class="comment-modal-body">
-                    <div class="comment-highlighted-text-preview">
-                        Selected area: ${Math.round(width)} × ${Math.round(height)} pixels
-                    </div>
-                    <textarea class="comment-textarea" placeholder="Enter your comment about the selected text..." id="commentText"></textarea>
-                </div>
-                <div class="comment-modal-actions">
-                    <button class="comment-modal-btn cancel">Cancel</button>
-                    <button class="comment-modal-btn save">Add Comment</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modal);
-        
-        // Bind modal events
-        const closeBtn = modal.querySelector('.comment-modal-close');
-        const cancelBtn = modal.querySelector('.cancel');
-        const saveBtn = modal.querySelector('.save');
-        const textarea = modal.querySelector('#commentText');
-        
-        const closeModal = () => {
-            modal.remove();
-            this.clearSelection();
-        };
-        
-        closeBtn.addEventListener('click', closeModal);
-        cancelBtn.addEventListener('click', closeModal);
-        
-        saveBtn.addEventListener('click', () => {
-            const text = textarea.value.trim();
-            if (text) {
-                this.addComment(text, { left, top, width, height });
-                closeModal();
-            } else {
-                alert('Please enter a comment.');
-            }
-        });
-        
-        // Focus textarea
-        textarea.focus();
-        
-        // Close on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
-    }
-    
-    addComment(text, position) {
-        const comment = {
-            id: Date.now(),
-            text: text,
-            position: position,
-            page: this.currentPage,
-            timestamp: new Date().toISOString(),
-            highlightedText: 'Selected text area'
-        };
-        
-        this.commentState.comments.push(comment);
-        this.createHighlight(position);
-        
-        // Save to localStorage
-        this.saveComments();
-    }
-    
-    createHighlight(position) {
-        const overlay = this.commentState.selectionOverlay;
-        if (!overlay) return;
-        
-        const highlight = document.createElement('div');
-        highlight.className = 'selection-highlight';
-        highlight.style.left = position.left + 'px';
-        highlight.style.top = position.top + 'px';
-        highlight.style.width = position.width + 'px';
-        highlight.style.height = position.height + 'px';
-        highlight.dataset.commentId = this.commentState.comments[this.commentState.comments.length - 1].id;
-        
-        // Add click handler to highlight
-        highlight.addEventListener('click', (e) => {
-            const commentId = parseInt(e.target.dataset.commentId);
-            this.highlightComment(commentId);
-        });
-        
-        overlay.appendChild(highlight);
-        this.commentState.highlights.push(highlight);
-    }
-    
-    
-    
-    scrollToPage(pageNumber) {
-        if (pageNumber !== this.currentPage) {
-            this.currentPage = pageNumber;
-            this.renderPage();
-            this.updatePageControls();
-        }
-    }
-    
-    deleteComment(commentId) {
-        console.log('Deleting comment:', commentId);
-        
-        // Remove from comments array
-        const originalLength = this.commentState.comments.length;
-        this.commentState.comments = this.commentState.comments.filter(c => c.id !== commentId);
-        console.log('Comments array length changed from', originalLength, 'to', this.commentState.comments.length);
-        
-        // Remove comment box
-        const commentBox = document.querySelector(`.comment-box[data-comment-id="${commentId}"]`);
-        if (commentBox) {
-            commentBox.remove();
-            console.log('Removed comment box for comment:', commentId);
-        }
-        
-        // Re-render sidebar
-        this.renderComments();
-        
-        // Save to localStorage
-        this.saveComments();
-        console.log('Comments saved after deletion');
-    }
-    
-    saveComments() {
-        try {
-            localStorage.setItem('pdfComments_' + this.files[0]?.name, JSON.stringify(this.commentState.comments));
-        } catch (error) {
-            console.error('Error saving comments:', error);
-        }
-    }
-    
-    loadComments() {
-        try {
-            const saved = localStorage.getItem('pdfComments_' + this.files[0]?.name);
-            console.log('Loading comments for file:', this.files[0]?.name);
-            if (saved) {
-                this.commentState.comments = JSON.parse(saved);
-                console.log('Loaded comments:', this.commentState.comments);
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                const responseText = data.candidates[0].content.parts[0].text.trim();
                 
-                // Auto-show sidebar if there are comments
-                if (this.commentState.comments.length > 0 && !this.commentState.isSidebarOpen) {
-                    this.openCommentSidebar();
+                // Try to parse JSON from the response
+                try {
+                    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        const flashcards = JSON.parse(jsonMatch[0]);
+                        return flashcards;
+                    } else {
+                        throw new Error('No valid JSON found in response');
+                    }
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    console.log('Raw response:', responseText);
+                    throw new Error('Failed to parse flashcards from AI response');
                 }
             } else {
-                console.log('No saved comments found');
-                this.commentState.comments = [];
+                throw new Error('Invalid response format from Gemini API');
             }
         } catch (error) {
-            console.error('Error loading comments:', error);
-            this.commentState.comments = [];
+            console.error('Gemini API error:', error);
+            throw error;
         }
     }
     
-    renderHighlights() {
-        const overlay = this.commentState.selectionOverlay;
-        if (!overlay) {
-            console.error('No overlay found in renderHighlights');
+    displayCurrentCard() {
+        const card = this.flashcardState.flashcards[this.flashcardState.currentCardIndex];
+        if (!card) return;
+        
+        // Update progress
+        this.updateCardProgress();
+        
+        // Update question and answer
+        const cardQuestion = document.getElementById('cardQuestion');
+        const cardAnswer = document.getElementById('cardAnswer');
+        
+        if (cardQuestion) {
+            cardQuestion.textContent = card.question;
+        }
+        
+        if (cardAnswer) {
+            cardAnswer.textContent = card.answer;
+        }
+        
+        // Reset card flip state
+        this.flashcardState.isFlipped = false;
+        const currentCard = document.getElementById('currentCard');
+        if (currentCard) {
+            currentCard.classList.remove('flipped');
+        }
+        
+        // Update stats
+        this.updateStudyStats();
+    }
+    
+    updateCardProgress() {
+        const cardProgress = document.getElementById('cardProgress');
+        const progressFill = document.getElementById('cardProgressFill');
+        
+        if (cardProgress) {
+            cardProgress.textContent = `Card ${this.flashcardState.currentCardIndex + 1} of ${this.flashcardState.flashcards.length}`;
+        }
+        
+        if (progressFill) {
+            const progress = ((this.flashcardState.currentCardIndex + 1) / this.flashcardState.flashcards.length) * 100;
+            progressFill.style.width = `${progress}%`;
+        }
+    }
+    
+    updateStudyStats() {
+        const correctCount = document.getElementById('correctCount');
+        const incorrectCount = document.getElementById('incorrectCount');
+        
+        if (correctCount) {
+            correctCount.textContent = this.flashcardState.correctCount;
+        }
+        
+        if (incorrectCount) {
+            incorrectCount.textContent = this.flashcardState.incorrectCount;
+        }
+    }
+    
+    flipCard() {
+        const currentCard = document.getElementById('currentCard');
+        if (currentCard) {
+            currentCard.classList.toggle('flipped');
+            this.flashcardState.isFlipped = !this.flashcardState.isFlipped;
+        }
+    }
+    
+    markCardCorrect() {
+        this.flashcardState.correctCount++;
+        this.nextCard();
+    }
+    
+    markCardIncorrect() {
+        this.flashcardState.incorrectCount++;
+        // Add current card to incorrect cards for review
+        this.flashcardState.incorrectCards.push(this.flashcardState.currentCardIndex);
+        this.nextCard();
+    }
+    
+    nextCard() {
+        this.flashcardState.currentCardIndex++;
+        
+        if (this.flashcardState.currentCardIndex >= this.flashcardState.flashcards.length) {
+            this.showResults();
+        } else {
+            this.displayCurrentCard();
+        }
+    }
+    
+    showResults() {
+        this.showResultsSection();
+        
+        const finalCorrectCount = document.getElementById('finalCorrectCount');
+        const finalIncorrectCount = document.getElementById('finalIncorrectCount');
+        
+        if (finalCorrectCount) {
+            finalCorrectCount.textContent = this.flashcardState.correctCount;
+        }
+        
+        if (finalIncorrectCount) {
+            finalIncorrectCount.textContent = this.flashcardState.incorrectCount;
+        }
+    }
+    
+    startReviewMode() {
+        if (this.flashcardState.incorrectCards.length === 0) {
+            alert('No incorrect cards to review!');
             return;
         }
         
-        console.log('Rendering comment boxes for page:', this.currentPage, 'comments:', this.commentState.comments.length);
-        overlay.innerHTML = '';
+        this.flashcardState.isReviewMode = true;
+        this.flashcardState.reviewIndex = 0;
+        this.showReviewSection();
+        this.displayReviewCard();
+    }
+    
+    displayReviewCard() {
+        const cardIndex = this.flashcardState.incorrectCards[this.flashcardState.reviewIndex];
+        const card = this.flashcardState.flashcards[cardIndex];
         
-        this.commentState.comments.forEach(comment => {
-            if (comment.page === this.currentPage) {
-                console.log('Creating comment box for comment:', comment.id);
-                this.createCommentBox(comment);
+        if (!card) return;
+        
+        // Update review progress
+        const reviewProgress = document.getElementById('reviewProgress');
+        if (reviewProgress) {
+            reviewProgress.textContent = `Reviewing ${this.flashcardState.reviewIndex + 1} of ${this.flashcardState.incorrectCards.length}`;
+        }
+        
+        // Update question and answer
+        const reviewQuestion = document.getElementById('reviewQuestion');
+        const reviewAnswer = document.getElementById('reviewAnswer');
+        
+        if (reviewQuestion) {
+            reviewQuestion.textContent = card.question;
+        }
+        
+        if (reviewAnswer) {
+            reviewAnswer.textContent = card.answer;
+        }
+        
+        // Reset card flip state
+        const reviewCard = document.getElementById('reviewCard');
+        if (reviewCard) {
+            reviewCard.classList.remove('flipped');
+        }
+    }
+    
+    flipReviewCard() {
+        const reviewCard = document.getElementById('reviewCard');
+        if (reviewCard) {
+            reviewCard.classList.toggle('flipped');
+        }
+    }
+    
+    markReviewCorrect() {
+        // Remove this card from incorrect cards
+        const cardIndex = this.flashcardState.incorrectCards[this.flashcardState.reviewIndex];
+        this.flashcardState.incorrectCards.splice(this.flashcardState.reviewIndex, 1);
+        
+        this.nextReviewCard();
+    }
+    
+    markReviewIncorrect() {
+        this.nextReviewCard();
+    }
+    
+    nextReviewCard() {
+        if (this.flashcardState.incorrectCards.length === 0) {
+            // All cards reviewed
+            this.flashcardState.isReviewMode = false;
+            this.showResults();
+        } else {
+            // Adjust review index if needed
+            if (this.flashcardState.reviewIndex >= this.flashcardState.incorrectCards.length) {
+                this.flashcardState.reviewIndex = 0;
             }
-        });
+            this.displayReviewCard();
+        }
+    }
+    
+    newFlashcardSet() {
+        this.showGenerationSection();
+        this.flashcardState.flashcards = [];
+        this.flashcardState.currentCardIndex = 0;
+        this.flashcardState.correctCount = 0;
+        this.flashcardState.incorrectCount = 0;
+        this.flashcardState.incorrectCards = [];
+        this.flashcardState.isFlipped = false;
+        this.flashcardState.isReviewMode = false;
+        this.flashcardState.reviewIndex = 0;
+    }
+    
+    showFlashcardLoading() {
+        const loading = document.getElementById('flashcardLoading');
+        const generateBtn = document.getElementById('generate-flashcards-btn');
+        
+        if (loading) loading.style.display = 'flex';
+        if (generateBtn) {
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+        }
+    }
+    
+    hideFlashcardLoading() {
+        const loading = document.getElementById('flashcardLoading');
+        const generateBtn = document.getElementById('generate-flashcards-btn');
+        
+        if (loading) loading.style.display = 'none';
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🎯 Generate Flashcards';
+        }
     }
     
 }

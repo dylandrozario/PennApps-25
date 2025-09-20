@@ -57,6 +57,7 @@
             <div id="quiz-button-container"></div>
             <div id="print-button-container"></div>
             <div id="form-button-container"></div>
+            <div id="flashcard-button-container"></div>
         </div>
         <div class="pdf-viewer-layout">
             <div class="pdf-container-fullscreen">
@@ -270,7 +271,6 @@
                                 <div class="tool-buttons">
                                     <button id="text-tool-btn" class="tool-btn active">📝 Text</button>
                                     <button id="signature-tool-btn" class="tool-btn">✍️ Signature</button>
-                                    <button id="checkbox-tool-btn" class="tool-btn">☑️ Checkbox</button>
                                     <button id="clear-tool-btn" class="tool-btn">🗑️ Clear All</button>
                                 </div>
                             </div>
@@ -325,7 +325,6 @@
                             <div class="tool-section">
                                 <h4>Actions</h4>
                                 <div class="form-actions">
-                                    <button id="save-form-btn" class="form-btn save-btn">💾 Save Filled PDF</button>
                                     <button id="download-form-btn" class="form-btn download-btn">📥 Download</button>
                                     <button id="reset-form-btn" class="form-btn reset-btn">🔄 Reset</button>
                                 </div>
@@ -342,6 +341,188 @@
                             <div class="form-canvas-container">
                                 <canvas id="formCanvas"></canvas>
                                 <div class="form-overlay" id="formOverlay"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Flashcard Dialog -->
+            <div class="flashcard-dialog" id="flashcardDialog" style="display: none;">
+                <div class="flashcard-dialog-content">
+                    <div class="flashcard-header">
+                        <h3>🎴 AI Flashcards</h3>
+                        <button id="close-flashcard-btn" class="close-btn">&times;</button>
+                    </div>
+                    
+                    <div class="flashcard-body">
+                        <!-- Generation Section -->
+                        <div id="flashcardGenerationSection" class="flashcard-section">
+                            <div class="generation-content">
+                                <div class="generation-header">
+                                    <h4>📚 Generate Flashcards</h4>
+                                    <p>AI will extract key details from your PDF and create interactive flashcards</p>
+                                </div>
+                                
+                                <div class="generation-settings">
+                                    <div class="setting-group">
+                                        <label for="flashcardCount">Number of Cards:</label>
+                                        <select id="flashcardCount">
+                                            <option value="10">10 Cards</option>
+                                            <option value="15" selected>15 Cards</option>
+                                            <option value="20">20 Cards</option>
+                                            <option value="25">25 Cards</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="setting-group">
+                                        <label for="flashcardDifficulty">Difficulty:</label>
+                                        <select id="flashcardDifficulty">
+                                            <option value="basic">Basic</option>
+                                            <option value="intermediate" selected>Intermediate</option>
+                                            <option value="advanced">Advanced</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <button id="generate-flashcards-btn" class="generate-flashcards-btn">
+                                    🎯 Generate Flashcards
+                                </button>
+                                
+                                <div id="flashcardLoading" class="flashcard-loading" style="display: none;">
+                                    <div class="loading-spinner"></div>
+                                    <p>Generating flashcards from PDF content...</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Study Section -->
+                        <div id="flashcardStudySection" class="flashcard-section" style="display: none;">
+                            <div class="study-content">
+                                <div class="study-header">
+                                    <div class="study-progress">
+                                        <div class="progress-bar">
+                                            <div id="cardProgressFill" class="progress-fill"></div>
+                                        </div>
+                                        <span id="cardProgress">Card 1 of 15</span>
+                                    </div>
+                                    
+                                    <div class="study-stats">
+                                        <div class="stat-item">
+                                            <span class="stat-label">✅ Correct:</span>
+                                            <span id="correctCount" class="stat-value">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">❌ Incorrect:</span>
+                                            <span id="incorrectCount" class="stat-value">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flashcard-container">
+                                    <div class="flashcard" id="currentCard">
+                                        <div class="flashcard-inner">
+                                            <div class="flashcard-front">
+                                                <div class="card-content">
+                                                    <div class="card-icon">❓</div>
+                                                    <div class="card-question" id="cardQuestion">Question will appear here</div>
+                                                </div>
+                                            </div>
+                                            <div class="flashcard-back">
+                                                <div class="card-content">
+                                                    <div class="card-icon">💡</div>
+                                                    <div class="card-answer" id="cardAnswer">Answer will appear here</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flashcard-actions">
+                                    <button id="markCorrect-btn" class="action-btn correct-btn">
+                                        ✅ I Know This
+                                    </button>
+                                    <button id="markIncorrect-btn" class="action-btn incorrect-btn">
+                                        ❌ I Don't Know
+                                    </button>
+                                </div>
+                                
+                                <div class="study-instructions">
+                                    <p>💡 Click the card to flip and see the answer</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Results Section -->
+                        <div id="flashcardResultsSection" class="flashcard-section" style="display: none;">
+                            <div class="results-content">
+                                <div class="results-header">
+                                    <h4>🎉 Study Session Complete!</h4>
+                                    <p>Great job on completing the flashcards</p>
+                                </div>
+                                
+                                <div class="results-stats">
+                                    <div class="final-score">
+                                        <div class="score-circle">
+                                            <span id="finalCorrectCount" class="score-number">0</span>
+                                            <span class="score-label">Correct</span>
+                                        </div>
+                                        <div class="score-circle">
+                                            <span id="finalIncorrectCount" class="score-number">0</span>
+                                            <span class="score-label">Incorrect</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="results-actions">
+                                    <button id="replay-incorrect-btn" class="action-btn replay-btn">
+                                        🔄 Review Incorrect Cards
+                                    </button>
+                                    <button id="new-flashcards-btn" class="action-btn new-btn">
+                                        🆕 New Flashcard Set
+                                    </button>
+                                    <button id="close-flashcards-btn" class="action-btn close-btn">
+                                        ✅ Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Review Section -->
+                        <div id="flashcardReviewSection" class="flashcard-section" style="display: none;">
+                            <div class="review-content">
+                                <div class="review-header">
+                                    <h4>🔄 Review Incorrect Cards</h4>
+                                    <p id="reviewProgress">Reviewing 1 of 3 incorrect cards</p>
+                                </div>
+                                
+                                <div class="flashcard-container">
+                                    <div class="flashcard" id="reviewCard">
+                                        <div class="flashcard-inner">
+                                            <div class="flashcard-front">
+                                                <div class="card-content">
+                                                    <div class="card-icon">❓</div>
+                                                    <div class="card-question" id="reviewQuestion">Question will appear here</div>
+                                                </div>
+                                            </div>
+                                            <div class="flashcard-back">
+                                                <div class="card-content">
+                                                    <div class="card-icon">💡</div>
+                                                    <div class="card-answer" id="reviewAnswer">Answer will appear here</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flashcard-actions">
+                                    <button id="reviewCorrect-btn" class="action-btn correct-btn">
+                                        ✅ I Know This Now
+                                    </button>
+                                    <button id="reviewIncorrect-btn" class="action-btn incorrect-btn">
+                                        ❌ Still Don't Know
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
