@@ -250,35 +250,34 @@ main {
     padding: 1rem;
 }
 
-.pdf-viewer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 2px solid #f0f0f0;
-    flex-shrink: 0;
-}
-
-.pdf-viewer-header h2 {
-    color: #333;
-    font-weight: 300;
-}
 
 .pdf-controls {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
-    padding: 1rem;
+    padding: 1.5rem 2rem;
     background: #f8f9fa;
     border-radius: 10px;
     flex-shrink: 0;
+    gap: 2rem;
+}
+
+.pdf-title {
+    font-weight: 500;
+    color: #333;
+    font-size: 1rem;
+    flex: 1;
+    margin-right: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .pdf-controls button {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    min-width: 80px;
 }
 
 #pageInfo {
@@ -289,44 +288,79 @@ main {
 .zoom-controls {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1rem;
 }
 
 .zoom-controls button {
-    width: 35px;
-    height: 35px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: bold;
+    font-size: 1.2rem;
 }
 
 #zoomLevel {
-    min-width: 50px;
+    min-width: 60px;
     text-align: center;
     font-weight: 500;
     color: #333;
+    font-size: 1rem;
 }
 
 .pdf-container-fullscreen {
     border: 1px solid #ddd;
     border-radius: 10px;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     flex: 1;
     background: #f9f9f9;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: 1rem;
+    padding: 1rem 1rem 0 1rem;
     min-height: 0;
+    scroll-behavior: smooth;
+    position: relative;
+    height: calc(100vh - 200px);
+    width: 100%;
+}
+
+/* Custom scrollbar styling - vertical only */
+.pdf-container-fullscreen::-webkit-scrollbar {
+    width: 12px;
+}
+
+.pdf-container-fullscreen::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 6px;
+}
+
+.pdf-container-fullscreen::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 6px;
+    border: 2px solid #f1f1f1;
+}
+
+.pdf-container-fullscreen::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Firefox scrollbar styling */
+.pdf-container-fullscreen {
+    scrollbar-width: auto;
+    scrollbar-color: #888 #f1f1f1;
 }
 
 #pdfCanvas {
-    max-width: 100%;
-    height: auto;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     border-radius: 5px;
+    display: block;
+    max-width: 100%;
+    max-height: none;
+    margin: 0 auto;
 }
 
 @media (max-width: 768px) {
