@@ -25,7 +25,6 @@ class PDFUploader {
         // PDF viewer elements
         this.pdfViewerSection = document.getElementById('pdfViewerSection');
         this.pdfTitle = document.getElementById('pdfTitle');
-        this.closeViewer = document.getElementById('closeViewer');
         this.prevPage = document.getElementById('prevPage');
         this.nextPage = document.getElementById('nextPage');
         this.pageInfo = document.getElementById('pageInfo');
@@ -37,8 +36,7 @@ class PDFUploader {
         // Debug: Check if all elements are found
         console.log('PDF viewer elements initialized:', {
             pdfViewerSection: !!this.pdfViewerSection,
-            pdfCanvas: !!this.pdfCanvas,
-            pdfTitle: !!this.pdfTitle
+            pdfCanvas: !!this.pdfCanvas
         });
     }
     
@@ -71,25 +69,22 @@ class PDFUploader {
         
         
         // PDF viewer events
-        this.closeViewer.addEventListener('click', () => {
-            this.closePDFViewer();
-        });
-        
         this.prevPage.addEventListener('click', () => {
-            this.previousPage();
+            this.goToPreviousPage();
         });
         
         this.nextPage.addEventListener('click', () => {
-            this.nextPage();
+            this.goToNextPage();
         });
         
         this.zoomOut.addEventListener('click', () => {
-            this.zoomOut();
+            this.zoomOutPDF();
         });
         
         this.zoomIn.addEventListener('click', () => {
-            this.zoomIn();
+            this.zoomInPDF();
         });
+        
     }
     
     initializePDFJS() {
@@ -300,8 +295,20 @@ class PDFUploader {
         const canvas = this.pdfCanvas;
         const context = canvas.getContext('2d');
         
+        // Set canvas size to match the PDF page dimensions
         canvas.height = viewport.height;
         canvas.width = viewport.width;
+        
+        // Ensure the canvas maintains its size for scrolling when zoomed
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        
+        // Position canvas for proper scrolling
+        canvas.style.position = 'relative';
+        canvas.style.margin = '0 auto';
+        canvas.style.display = 'block';
+        canvas.style.left = '0';
+        canvas.style.top = '0';
         
         const renderContext = {
             canvasContext: context,
@@ -309,34 +316,69 @@ class PDFUploader {
         };
         
         await page.render(renderContext).promise;
+        
+        // Ensure scrolling works
+        this.setupScrolling();
     }
     
-    async previousPage() {
+    setupScrolling() {
+        const container = document.querySelector('.pdf-container-fullscreen');
+        const canvas = this.pdfCanvas;
+        
+        if (!container || !canvas) return;
+        
+        // Only enable vertical scrolling
+        container.style.overflowX = 'hidden';
+        container.style.overflowY = 'auto';
+        
+        // Ensure scrollbars are always visible
+        container.style.scrollbarWidth = 'auto';
+        container.style.scrollbarColor = '#888 #f1f1f1';
+        
+        // Log dimensions for debugging
+        console.log(`Canvas size: ${canvas.width}x${canvas.height}, Scale: ${this.scale}`);
+        console.log(`Container size: ${container.clientWidth}x${container.clientHeight}`);
+        console.log('Vertical scrolling setup complete');
+    }
+    
+    async goToPreviousPage() {
         if (this.currentPage > 1) {
             this.currentPage--;
             await this.renderPage();
             this.updatePageControls();
+            this.resetScrollPosition();
         }
     }
     
-    async nextPage() {
+    async goToNextPage() {
         if (this.currentPage < this.totalPages) {
             this.currentPage++;
             await this.renderPage();
             this.updatePageControls();
+            this.resetScrollPosition();
         }
     }
     
-    async zoomIn() {
+    resetScrollPosition() {
+        const container = document.querySelector('.pdf-container-fullscreen');
+        if (container) {
+            container.scrollTop = 0;
+            container.scrollLeft = 0;
+        }
+    }
+    
+    async zoomInPDF() {
         this.scale = Math.min(this.scale * 1.2, 3.0);
         await this.renderPage();
         this.updateZoomControls();
+        this.resetScrollPosition();
     }
     
-    async zoomOut() {
-        this.scale = Math.max(this.scale / 1.2, 0.5);
+    async zoomOutPDF() {
+        this.scale = Math.max(this.scale / 1.2, 1.0);
         await this.renderPage();
         this.updateZoomControls();
+        this.resetScrollPosition();
     }
     
     updatePageControls() {
@@ -348,6 +390,7 @@ class PDFUploader {
     updateZoomControls() {
         this.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
     }
+    
     
     closePDFViewer() {
         this.pdfViewerSection.style.display = 'none';
