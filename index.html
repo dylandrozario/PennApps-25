@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Tutor</title>
+    <title>PDF Uploader</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="summarizer-button/note-taking-button.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <header class="fade-in">
-            <h1>PDF Tutor</h1>
-            <h2><strong>Upload a file and let the magic happen</strong> 🪄</h2>
+        <header>
+            <h1>PDF Document Uploader</h1>
+            <p>Upload your PDF documents securely</p>
         </header>
         
         <main>
-            <div class="upload-section fade-in" style="animation-delay: 0.3s;">
+            <div class="upload-section">
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -32,7 +32,7 @@
                 
             </div>
             
-            <div class="file-list fade-in" id="fileList" style="animation-delay: 0.6s;">
+            <div class="file-list" id="fileList">
                 <!-- Uploaded files will appear here -->
             </div>
             
@@ -56,10 +56,34 @@
             <div id="summarize-button-container"></div>
             <div id="quiz-button-container"></div>
             <div id="print-button-container"></div>
+            <div id="form-button-container"></div>
         </div>
         <div class="pdf-viewer-layout">
             <div class="pdf-container-fullscreen">
                 <canvas id="pdfCanvas"></canvas>
+            </div>
+            
+            <!-- Comment Sidebar -->
+            <div class="comment-sidebar" id="commentSidebar" style="display: none;">
+                <div class="comment-header">
+                    <h3>💬 Comments</h3>
+                    <button id="toggle-comment-sidebar" class="comment-toggle-btn">Hide</button>
+                </div>
+                <div class="comment-list" id="commentList">
+                    <div class="no-comments">
+                        <p>No comments yet. Select text and right-click to add comments.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Context Menu for Comments -->
+            <div class="context-menu" id="commentContextMenu" style="display: none;">
+                <div class="context-menu-item" id="addCommentContext">
+                    <span>💬 Add Comment</span>
+                </div>
+                <div class="context-menu-item" id="copyTextContext">
+                    <span>📋 Copy Text</span>
+                </div>
             </div>
             <div class="summary-panel" id="summaryPanel" style="display: none;">
                 <div class="summary-header">
@@ -230,9 +254,103 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Form Filling Dialog -->
+            <div class="form-dialog" id="formDialog" style="display: none;">
+                <div class="form-dialog-content">
+                    <div class="form-header">
+                        <h3>📝 Fill & Sign PDF</h3>
+                        <button id="close-form-btn" class="close-btn">&times;</button>
+                    </div>
+                    
+                    <div class="form-body">
+                        <div class="form-tools">
+                            <div class="tool-section">
+                                <h4>Form Tools</h4>
+                                <div class="tool-buttons">
+                                    <button id="text-tool-btn" class="tool-btn active">📝 Text</button>
+                                    <button id="signature-tool-btn" class="tool-btn">✍️ Signature</button>
+                                    <button id="checkbox-tool-btn" class="tool-btn">☑️ Checkbox</button>
+                                    <button id="clear-tool-btn" class="tool-btn">🗑️ Clear All</button>
+                                </div>
+                            </div>
+                            
+                            <div class="tool-section">
+                                <h4>Text Properties</h4>
+                                <div class="text-properties" id="textProperties">
+                                    <div class="property-group">
+                                        <label for="fontSize">Font Size:</label>
+                                        <select id="fontSize">
+                                            <option value="12">12px</option>
+                                            <option value="14" selected>14px</option>
+                                            <option value="16">16px</option>
+                                            <option value="18">18px</option>
+                                            <option value="20">20px</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="property-group">
+                                        <label for="textColor">Text Color:</label>
+                                        <input type="color" id="textColor" value="#000000">
+                                    </div>
+                                    
+                                    <div class="property-group">
+                                        <label for="fontFamily">Font:</label>
+                                        <select id="fontFamily">
+                                            <option value="Arial" selected>Arial</option>
+                                            <option value="Times New Roman">Times New Roman</option>
+                                            <option value="Courier New">Courier New</option>
+                                            <option value="Helvetica">Helvetica</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="signature-properties" id="signatureProperties" style="display: none;">
+                                    <div class="property-group">
+                                        <label for="signatureColor">Signature Color:</label>
+                                        <input type="color" id="signatureColor" value="#000000">
+                                    </div>
+                                    
+                                    <div class="property-group">
+                                        <label for="signatureWidth">Line Width:</label>
+                                        <input type="range" id="signatureWidth" min="1" max="10" value="3">
+                                    </div>
+                                    
+                                    <div class="property-group">
+                                        <button id="clear-signature-btn" class="clear-btn">Clear Signature</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="tool-section">
+                                <h4>Actions</h4>
+                                <div class="form-actions">
+                                    <button id="save-form-btn" class="form-btn save-btn">💾 Save Filled PDF</button>
+                                    <button id="download-form-btn" class="form-btn download-btn">📥 Download</button>
+                                    <button id="reset-form-btn" class="form-btn reset-btn">🔄 Reset</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-preview">
+                            <div class="preview-header">
+                                <h4>📄 PDF Preview</h4>
+                                <div class="preview-controls">
+                                    <span class="instruction">Click on the PDF to add text or draw signature</span>
+                                </div>
+                            </div>
+                            <div class="form-canvas-container">
+                                <canvas id="formCanvas"></canvas>
+                                <div class="form-overlay" id="formOverlay"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
+    <script src="config.js"></script>
     <script src="summarizer-button/note-taking-button.js"></script>
     <script src="script.js"></script>
 </body>
