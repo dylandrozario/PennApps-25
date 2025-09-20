@@ -380,4 +380,310 @@ main {
     .pdf-container-fullscreen {
         padding: 0.5rem;
     }
+    
+    .pdf-viewer-layout {
+        flex-direction: column;
+    }
+    
+    .summary-panel {
+        width: 100%;
+        max-height: 50vh;
+    }
+}
+
+/* PDF Viewer Layout with Summary Panel */
+.pdf-viewer-layout {
+    display: flex;
+    height: calc(100vh - 120px);
+    gap: 1rem;
+}
+
+.pdf-container-fullscreen {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 1rem;
+    overflow: auto;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.summary-panel {
+    width: 400px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e1e5e9;
+}
+
+.summary-header h3 {
+    margin: 0;
+    color: #1a1a1a;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.summary-header button {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #5f6368;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.summary-header button:hover {
+    background: #e8eaed;
+    color: #1a1a1a;
+}
+
+.summary-body {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    /* Hide scrollbar but keep scrolling functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.summary-body::-webkit-scrollbar {
+    display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+}
+
+.summary-body .input-section {
+    margin-bottom: 0;
+    position: relative;
+}
+
+.summary-body label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.summary-body #text-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.75rem;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+.summary-body #text-input:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+.summary-body #text-input::placeholder {
+    color: #9aa0a6;
+}
+
+.summary-body .input-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.summary-body #word-count {
+    font-size: 0.8rem;
+    color: #5f6368;
+    font-weight: 500;
+}
+
+.summary-body .length-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.summary-body .length-controls label {
+    font-size: 0.8rem;
+    color: #5f6368;
+    font-weight: 500;
+    margin: 0;
+}
+
+.summary-body #summary-length {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background: white;
+    font-size: 0.8rem;
+    color: #1a1a1a;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.summary-body #summary-length:hover {
+    border-color: #4285f4;
+}
+
+.summary-body #summary-length:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.2);
+}
+
+.summary-body .simplify-btn {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    color: #1a1a1a;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(255, 215, 0, 0.3);
+}
+
+.summary-body .simplify-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(255, 215, 0, 0.4);
+}
+
+.summary-body .simplify-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.summary-body .simplify-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.summary-body .output-section {
+    margin-top: 0;
+    padding-top: 1rem;
+    border-top: 1px solid #e1e5e9;
+}
+
+.summary-body .output-section label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.summary-body .notes-output {
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+    padding: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #1a1a1a;
+    min-height: 60px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-y: auto;
+    /* Hide scrollbar but keep scrolling functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.summary-body .notes-output::-webkit-scrollbar {
+    display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+}
+
+.summary-body .output-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.summary-body #notes-stats {
+    font-size: 0.8rem;
+    color: #5f6368;
+    font-weight: 500;
+}
+
+.summary-body .copy-btn {
+    background: #f1f3f4;
+    color: #1a1a1a;
+    border: 1px solid #dadce0;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.summary-body .copy-btn:hover {
+    background: #e8eaed;
+    border-color: #5f6368;
+}
+
+.summary-body .copy-btn:active {
+    background: #dadce0;
+}
+
+.summary-body .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    color: #5f6368;
+    font-size: 0.9rem;
+}
+
+.summary-body .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e1e5e9;
+    border-top: 2px solid #4285f4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Summarize button in PDF controls */
+#summarize-button-container {
+    display: flex;
+    align-items: center;
+}
+
+#summarize-button-container .note-taking-btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
 }

@@ -14,6 +14,7 @@ class PDFUploader {
         this.initializeElements();
         this.bindEvents();
         this.initializePDFJS();
+        this.initializeNoteTakingButton();
     }
     
     initializeElements() {
@@ -34,6 +35,10 @@ class PDFUploader {
         this.zoomLevel = document.getElementById('zoomLevel');
         this.pdfCanvas = document.getElementById('pdfCanvas');
         
+        // Summary panel elements
+        this.summaryPanel = document.getElementById('summaryPanel');
+        this.summarizeButtonContainer = document.getElementById('summarize-button-container');
+        
         // Debug: Check if all elements are found
         console.log('PDF viewer elements initialized:', {
             pdfViewerSection: !!this.pdfViewerSection,
@@ -50,6 +55,7 @@ class PDFUploader {
         
         // File input change
         this.fileInput.addEventListener('change', (e) => {
+            console.log('File input changed, files:', e.target.files.length);
             this.handleFiles(e.target.files);
         });
         
@@ -74,6 +80,8 @@ class PDFUploader {
         this.closeViewer.addEventListener('click', () => {
             this.closePDFViewer();
         });
+        
+        // Summary panel events (handled in toggleSummaryPanel method)
         
         this.prevPage.addEventListener('click', () => {
             this.previousPage();
@@ -204,6 +212,7 @@ class PDFUploader {
     waitForPDFJSAndView() {
         console.log('waitForPDFJSAndView called, pdfjsReady:', this.pdfjsReady);
         console.log('pdfjsLib available:', typeof pdfjsLib !== 'undefined');
+        console.log('Files count:', this.files.length);
         
         if (this.pdfjsReady && typeof pdfjsLib !== 'undefined') {
             console.log('PDF.js is ready, calling viewPDF');
@@ -216,6 +225,7 @@ class PDFUploader {
                     console.error('PDF.js still not ready after waiting');
                     this.showStatus('PDF viewer not ready. Please try again.', 'error');
                 } else {
+                    console.log('PDF.js became ready, retrying...');
                     this.waitForPDFJSAndView();
                 }
             }, 100);
@@ -251,10 +261,16 @@ class PDFUploader {
         }
         
         console.log('Viewing PDF:', file.name);
+        console.log('PDF.js ready:', this.pdfjsReady);
+        console.log('pdfjsLib available:', typeof pdfjsLib !== 'undefined');
+        console.log('PDF viewer section:', this.pdfViewerSection);
+        console.log('PDF canvas:', this.pdfCanvas);
+        
         this.showStatus('Loading PDF...', 'info');
         
         // Check if PDF.js is loaded and ready
         if (typeof pdfjsLib === 'undefined' || !this.pdfjsReady) {
+            console.error('PDF.js not ready. pdfjsLib:', typeof pdfjsLib, 'pdfjsReady:', this.pdfjsReady);
             this.showStatus('PDF.js library not ready. Please try again.', 'error');
             return;
         }
@@ -355,10 +371,296 @@ class PDFUploader {
         // Show the main container (home page) again
         document.querySelector('.container').style.display = 'block';
         
+        // Hide summary panel
+        this.summaryPanel.style.display = 'none';
+        
         this.currentPDF = null;
         this.currentPage = 1;
         this.totalPages = 0;
         this.scale = 1.0;
+    }
+    
+    initializeNoteTakingButton() {
+        // Create a simple button instead of using the modal component
+        const button = document.createElement('button');
+        button.className = 'note-taking-btn';
+        button.innerHTML = '📝 Summarize PDF';
+        button.addEventListener('click', () => this.toggleSummaryPanel());
+        
+        // Add the button to the PDF controls
+        this.summarizeButtonContainer.appendChild(button);
+        
+        // Initialize the inline interface
+        this.initializeInlineInterface();
+    }
+    
+    initializeInlineInterface() {
+        // Bind events for the inline interface
+        const textInput = document.getElementById('text-input');
+        const simplifyBtn = document.getElementById('simplify-btn');
+        const copyBtn = document.getElementById('copy-notes');
+        const lengthSelect = document.getElementById('summary-length');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        
+        // Update API status
+        if (statusIndicator && statusText) {
+            statusIndicator.className = 'status-indicator gemini-active';
+            statusText.textContent = 'Gemini AI';
+        }
+        
+        if (textInput) {
+            textInput.addEventListener('input', () => this.updateWordCount());
+        }
+        
+        if (simplifyBtn) {
+            simplifyBtn.addEventListener('click', () => this.simplifyText());
+        }
+        
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => this.copyNotes());
+        }
+        
+        if (lengthSelect) {
+            lengthSelect.addEventListener('change', () => this.updateSummaryLength());
+        }
+    }
+    
+    toggleSummaryPanel() {
+        if (this.summaryPanel.style.display === 'none' || !this.summaryPanel.style.display) {
+            this.summaryPanel.style.display = 'flex';
+            // Auto-extract PDF text when opening
+            this.extractPDFTextAndSummarize();
+        } else {
+            this.summaryPanel.style.display = 'none';
+        }
+    }
+    
+    updateWordCount() {
+        const textInput = document.getElementById('text-input');
+        const wordCount = document.getElementById('word-count');
+        if (textInput && wordCount) {
+            const text = textInput.value.trim();
+            const words = text ? text.split(/\s+/).length : 0;
+            wordCount.textContent = `${words} words`;
+        }
+    }
+    
+    updateSummaryLength() {
+        const lengthSelect = document.getElementById('summary-length');
+        if (lengthSelect) {
+            const length = lengthSelect.value;
+            switch(length) {
+                case 'short':
+                    this.summaryOptions = { maxLength: 100, minLength: 50, ratio: 0.2 };
+                    break;
+                case 'medium':
+                    this.summaryOptions = { maxLength: 200, minLength: 100, ratio: 0.3 };
+                    break;
+                case 'long':
+                    this.summaryOptions = { maxLength: 300, minLength: 200, ratio: 0.4 };
+                    break;
+            }
+        }
+    }
+    
+    async simplifyText() {
+        const textInput = document.getElementById('text-input');
+        const text = textInput ? textInput.value.trim() : '';
+        
+        if (!text) {
+            alert('Please enter some text to simplify.');
+            return;
+        }
+
+        if (text.split(/\s+/).length < 10) {
+            alert('Text is too short to simplify effectively. Please enter at least 10 words.');
+            return;
+        }
+
+        this.showLoading();
+        
+        try {
+            const notes = await this.generateNotes(text);
+            this.displayNotes(notes, text);
+        } catch (error) {
+            console.error('Simplification error:', error);
+            alert('Error generating notes. Please try again.');
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    async generateNotes(text) {
+        const words = text.split(/\s+/);
+        const options = this.summaryOptions || { maxLength: 200, minLength: 100, ratio: 0.3 };
+        const targetLength = Math.max(
+            options.minLength,
+            Math.min(options.maxLength, Math.floor(words.length * options.ratio))
+        );
+
+        const prompt = `Please rewrite and simplify the following text for note-taking purposes in approximately ${targetLength} words. Make it:
+
+- Simple and easy to understand
+- Use shorter sentences and simpler words
+- Focus on the main ideas and key facts
+- Organize information clearly
+- Remove unnecessary details but keep important points
+- Make it suitable for studying and reference
+
+Original text:
+${text}
+
+Simplified notes:`;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_GEMINI_API_KEY_HERE`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.3,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 1024,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                return data.candidates[0].content.parts[0].text.trim();
+            } else {
+                throw new Error('Invalid response format from Gemini API');
+            }
+        } catch (error) {
+            console.error('Gemini API error:', error);
+            throw error;
+        }
+    }
+    
+    displayNotes(notes, originalText) {
+        const outputSection = document.getElementById('output-section');
+        const notesOutput = document.getElementById('notes-output');
+        const notesStats = document.getElementById('notes-stats');
+        
+        if (notesOutput) {
+            notesOutput.textContent = notes;
+        }
+        
+        if (notesStats) {
+            const originalWords = originalText.split(/\s+/).length;
+            const notesWords = notes.split(/\s+/).length;
+            const compressionRatio = ((originalWords - notesWords) / originalWords * 100).toFixed(1);
+            notesStats.textContent = `${notesWords} words (${compressionRatio}% reduction)`;
+        }
+        
+        if (outputSection) {
+            outputSection.style.display = 'block';
+        }
+    }
+    
+    copyNotes() {
+        const notesOutput = document.getElementById('notes-output');
+        const text = notesOutput ? notesOutput.textContent : '';
+        
+        navigator.clipboard.writeText(text).then(() => {
+            const copyBtn = document.getElementById('copy-notes');
+            if (copyBtn) {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy notes to clipboard');
+        });
+    }
+    
+    showLoading() {
+        const loading = document.getElementById('loading');
+        const simplifyBtn = document.getElementById('simplify-btn');
+        
+        if (loading) loading.style.display = 'flex';
+        if (simplifyBtn) {
+            simplifyBtn.disabled = true;
+            simplifyBtn.textContent = 'Simplifying...';
+        }
+    }
+
+    hideLoading() {
+        const loading = document.getElementById('loading');
+        const simplifyBtn = document.getElementById('simplify-btn');
+        
+        if (loading) loading.style.display = 'none';
+        if (simplifyBtn) {
+            simplifyBtn.disabled = false;
+            simplifyBtn.textContent = 'Simplify for Notes';
+        }
+    }
+    
+    async extractPDFTextAndSummarize() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        try {
+            // Show loading state
+            const textInput = document.getElementById('text-input');
+            if (textInput) {
+                textInput.value = 'Extracting text from PDF...';
+                textInput.disabled = true;
+            }
+            
+            // Extract text from all pages
+            let fullText = '';
+            for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
+                const page = await this.currentPDF.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n\n';
+            }
+            
+            if (fullText.trim().length === 0) {
+                if (textInput) {
+                    textInput.value = 'No text found in this PDF. It may be an image-based PDF.';
+                }
+                return;
+            }
+            
+            // Set the extracted text in the textarea
+            if (textInput) {
+                textInput.value = fullText;
+                textInput.disabled = false;
+                this.updateWordCount();
+            }
+            
+            // Auto-generate summary
+            this.simplifyText();
+            
+        } catch (error) {
+            console.error('Error extracting PDF text:', error);
+            const textInput = document.getElementById('text-input');
+            if (textInput) {
+                textInput.value = 'Error extracting text from PDF. Please try again.';
+                textInput.disabled = false;
+            }
+        }
     }
 }
 

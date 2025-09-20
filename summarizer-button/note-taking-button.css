@@ -1,0 +1,463 @@
+/* AI Note-Taking Button Component Styles */
+
+/* Button Styles */
+.note-taking-btn {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    color: #1a1a1a;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.note-taking-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 215, 0, 0.4);
+}
+
+.note-taking-btn:active {
+    transform: translateY(0);
+}
+
+/* Modal Styles */
+.note-taking-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 16px;
+    border-bottom: 2px solid #f1f3f4;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #1a1a1a;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.modal-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.api-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #f1f3f4;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.gemini-active {
+    background: #34a853;
+    box-shadow: 0 0 4px rgba(52, 168, 83, 0.5);
+}
+
+.status-indicator.local-mode {
+    background: #ea4335;
+    box-shadow: 0 0 4px rgba(234, 67, 53, 0.5);
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #5f6368;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    background: #f1f3f4;
+    color: #1a1a1a;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.input-section {
+    margin-bottom: 24px;
+}
+
+.input-section label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+#text-input {
+    width: 100%;
+    min-height: 120px;
+    padding: 16px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+#text-input:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+}
+
+#text-input::placeholder {
+    color: #9aa0a6;
+}
+
+.input-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+#word-count {
+    font-size: 14px;
+    color: #5f6368;
+    font-weight: 500;
+}
+
+.length-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.length-controls label {
+    font-size: 14px;
+    color: #5f6368;
+    font-weight: 500;
+    margin: 0;
+}
+
+#summary-length {
+    padding: 6px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    background: white;
+    font-size: 14px;
+    color: #1a1a1a;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+#summary-length:hover {
+    border-color: #4285f4;
+}
+
+#summary-length:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.simplify-btn {
+    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(66, 133, 244, 0.3);
+}
+
+.simplify-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(66, 133, 244, 0.4);
+}
+
+.simplify-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.simplify-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.output-section {
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 2px solid #f1f3f4;
+}
+
+.output-section label {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+.notes-output {
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #1a1a1a;
+    min-height: 80px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.output-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+#notes-stats {
+    font-size: 14px;
+    color: #5f6368;
+    font-weight: 500;
+}
+
+.copy-btn {
+    background: #f1f3f4;
+    color: #1a1a1a;
+    border: 1px solid #dadce0;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+    background: #e8eaed;
+    border-color: #5f6368;
+}
+
+.copy-btn:active {
+    background: #dadce0;
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px;
+    color: #5f6368;
+    font-size: 16px;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e1e5e9;
+    border-top: 2px solid #4285f4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 20px;
+    }
+    
+    .modal-header {
+        padding: 16px 20px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .modal-header h3 {
+        font-size: 18px;
+    }
+    
+    .modal-body {
+        padding: 20px;
+    }
+    
+    .input-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .output-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .modal-content {
+        background: #1a1a1a;
+        color: #e8eaed;
+    }
+    
+    .modal-header {
+        border-bottom-color: #3c4043;
+    }
+    
+    .modal-header h3 {
+        color: #e8eaed;
+    }
+    
+    .api-status {
+        background: #3c4043;
+        color: #e8eaed;
+    }
+    
+    .close-btn {
+        color: #9aa0a6;
+    }
+    
+    .close-btn:hover {
+        background: #3c4043;
+        color: #e8eaed;
+    }
+    
+    .input-section label {
+        color: #e8eaed;
+    }
+    
+    #text-input {
+        background: #2d2d2d;
+        border-color: #3c4043;
+        color: #e8eaed;
+    }
+    
+    #text-input::placeholder {
+        color: #9aa0a6;
+    }
+    
+    #word-count {
+        color: #9aa0a6;
+    }
+    
+    .length-controls label {
+        color: #9aa0a6;
+    }
+    
+    #summary-length {
+        background: #2d2d2d;
+        border-color: #3c4043;
+        color: #e8eaed;
+    }
+    
+    .output-section {
+        border-top-color: #3c4043;
+    }
+    
+    .output-section label {
+        color: #e8eaed;
+    }
+    
+    .notes-output {
+        background: #2d2d2d;
+        border-color: #3c4043;
+        color: #e8eaed;
+    }
+    
+    #notes-stats {
+        color: #9aa0a6;
+    }
+    
+    .copy-btn {
+        background: #3c4043;
+        color: #e8eaed;
+        border-color: #5f6368;
+    }
+    
+    .copy-btn:hover {
+        background: #5f6368;
+    }
+    
+    .loading {
+        color: #9aa0a6;
+    }
+    
+    .spinner {
+        border-color: #3c4043;
+        border-top-color: #4285f4;
+    }
+}
