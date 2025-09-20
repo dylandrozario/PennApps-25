@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Uploader</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="summarizer-button/note-taking-button.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
@@ -55,12 +56,61 @@
                 <span id="zoomLevel">100%</span>
                 <button id="zoomIn" class="btn btn-secondary">+</button>
             </div>
+            <div id="summarize-button-container"></div>
         </div>
-        <div class="pdf-container-fullscreen">
-            <canvas id="pdfCanvas"></canvas>
+        <div class="pdf-viewer-layout">
+            <div class="pdf-container-fullscreen">
+                <canvas id="pdfCanvas"></canvas>
+            </div>
+            <div class="summary-panel" id="summaryPanel" style="display: none;">
+                <div class="summary-header">
+                    <h3>📝 AI Note-Taking Assistant</h3>
+                    <div class="api-status" id="api-status">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="status-text">Local Mode</span>
+                    </div>
+                </div>
+                
+                <div class="summary-body">
+                    <div class="input-section">
+                        <textarea 
+                            id="text-input" 
+                            placeholder="Paste your text here..."
+                            rows="6"
+                        ></textarea>
+                        <div class="input-info">
+                            <span id="word-count">0 words</span>
+                            <div class="length-controls">
+                                <label for="summary-length">Length:</label>
+                                <select id="summary-length">
+                                    <option value="short">Short (50-100 words)</option>
+                                    <option value="medium" selected>Medium (100-200 words)</option>
+                                    <option value="long">Long (200-300 words)</option>
+                                </select>
+                            </div>
+                            <button id="simplify-btn" class="simplify-btn">Simplify for Notes</button>
+                        </div>
+                    </div>
+                    
+                    <div class="output-section" id="output-section" style="display: none;">
+                        <label>Simplified Notes:</label>
+                        <div class="notes-output" id="notes-output"></div>
+                        <div class="output-info">
+                            <span id="notes-stats"></span>
+                            <button id="copy-notes" class="copy-btn">Copy Notes</button>
+                        </div>
+                    </div>
+                    
+                    <div class="loading" id="loading" style="display: none;">
+                        <div class="spinner"></div>
+                        <span>Simplifying for notes...</span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
+    <script src="summarizer-button/note-taking-button.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
