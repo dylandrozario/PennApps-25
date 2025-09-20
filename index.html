@@ -54,6 +54,8 @@
                 <button id="zoomIn" class="btn btn-secondary">+</button>
             </div>
             <div id="summarize-button-container"></div>
+            <div id="quiz-button-container"></div>
+            <div id="print-button-container"></div>
         </div>
         <div class="pdf-viewer-layout">
             <div class="pdf-container-fullscreen">
@@ -101,6 +103,130 @@
                     <div class="loading" id="loading" style="display: none;">
                         <div class="spinner"></div>
                         <span>Simplifying for notes...</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quiz Panel -->
+            <div class="quiz-panel" id="quizPanel" style="display: none;">
+                <div class="quiz-header">
+                    <h3>🧠 AI Comprehension Quiz</h3>
+                    <div class="quiz-controls">
+                        <div class="quiz-settings">
+                            <label for="quiz-difficulty">Difficulty:</label>
+                            <select id="quiz-difficulty">
+                                <option value="easy">Easy</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="hard">Hard</option>
+                            </select>
+                            <label for="quiz-count">Questions:</label>
+                            <select id="quiz-count">
+                                <option value="5">5 Questions</option>
+                                <option value="10" selected>10 Questions</option>
+                                <option value="15">15 Questions</option>
+                            </select>
+                        </div>
+                        <button id="close-quiz-btn" class="close-btn">&times;</button>
+                    </div>
+                </div>
+                
+                <div class="quiz-body">
+                    <!-- Quiz Generation Section -->
+                    <div class="quiz-generation-section" id="quizGenerationSection">
+                        <div class="quiz-intro">
+                            <p>Generate a personalized quiz based on the PDF content to test your comprehension!</p>
+                            <button id="generate-quiz-btn" class="generate-quiz-btn">🎯 Generate Quiz</button>
+                        </div>
+                        
+                        <div class="quiz-loading" id="quizLoading" style="display: none;">
+                            <div class="spinner"></div>
+                            <span>Generating quiz questions...</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Questions Section -->
+                    <div class="quiz-questions-section" id="quizQuestionsSection" style="display: none;">
+                        <div class="quiz-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill"></div>
+                            </div>
+                            <span id="question-counter">Question 1 of 10</span>
+                        </div>
+                        
+                        <div class="question-container">
+                            <div class="question-header">
+                                <span class="question-type" id="questionType">Multiple Choice</span>
+                                <span class="question-difficulty" id="questionDifficulty">Medium</span>
+                            </div>
+                            <h4 class="question-text" id="questionText">Loading question...</h4>
+                            
+                            <div class="question-options" id="questionOptions">
+                                <!-- Options will be dynamically generated -->
+                            </div>
+                            
+                            <div class="question-actions">
+                                <button id="submit-answer-btn" class="submit-btn" disabled>Submit Answer</button>
+                                <button id="next-question-btn" class="next-btn" style="display: none;">Next Question</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Results Section -->
+                    <div class="quiz-results-section" id="quizResultsSection" style="display: none;">
+                        <div class="results-header">
+                            <h3>🎉 Quiz Complete!</h3>
+                            <div class="score-display">
+                                <div class="score-circle">
+                                    <span id="finalScore">0%</span>
+                                </div>
+                                <div class="score-details">
+                                    <p id="scoreText">Great job!</p>
+                                    <p id="scoreBreakdown">0 out of 0 questions correct</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="results-summary">
+                            <div class="summary-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Accuracy</span>
+                                    <span class="stat-value" id="accuracyStat">0%</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Time Taken</span>
+                                    <span class="stat-value" id="timeStat">0:00</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Difficulty</span>
+                                    <span class="stat-value" id="difficultyStat">Medium</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="results-actions">
+                            <button id="retake-quiz-btn" class="retake-btn">🔄 Retake Quiz</button>
+                            <button id="new-quiz-btn" class="new-quiz-btn">🎯 New Quiz</button>
+                            <button id="review-answers-btn" class="review-btn">📝 Review Answers</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Print Dialog -->
+            <div class="print-dialog" id="printDialog" style="display: none;">
+                <div class="print-dialog-content">
+                    <div class="print-header">
+                        <h3>🖨️ Print PDF</h3>
+                        <button id="close-print-btn" class="close-btn">&times;</button>
+                    </div>
+                    
+                    <div class="print-body">
+                        <div class="print-simple">
+                            <p>Click the button below to print all pages of the PDF.</p>
+                            <div class="print-actions">
+                                <button id="print-execute-btn" class="print-btn execute-btn">🖨️ Print All Pages</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
