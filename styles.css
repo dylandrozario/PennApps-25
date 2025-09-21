@@ -279,7 +279,7 @@ body {
 
 /* Tools Section */
 .tools-section {
-    margin-top: 12rem;
+    margin-top: 16rem;
     width: 100%;
     max-width: 1200px;
     padding: 0 2rem;
@@ -1768,7 +1768,7 @@ body {
     }
     
     .tools-section {
-        margin-top: 8rem;
+        margin-top: 10rem;
         padding: 0 1rem;
     }
     
@@ -1793,7 +1793,7 @@ body {
     }
     
     .tools-section {
-        margin-top: 6rem;
+        margin-top: 8rem;
         padding: 0 0.5rem;
     }
     
@@ -2379,46 +2379,119 @@ body {
 .resource-type.flashcards { background: #6f42c1; }
 .resource-type.worksheet { background: #fd7e14; }
 
+/* YouTube Search Link Styles */
+.search-link-card {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+}
+
+.search-link-card:hover {
+    background: #505050;
+    border-color: #666666;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.search-link-card h5 {
+    color: #ffffff;
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.search-link {
+    display: inline-block;
+    background: #dc3545;
+    color: #ffffff;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.search-link:hover {
+    background: #c82333;
+    color: #ffffff;
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.search-instruction {
+    color: #cccccc;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.topic-description {
+    color: #cccccc;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 0 0;
+    line-height: 1.4;
+}
+
+.error-details {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 4px;
+    border-left: 3px solid #ff6b6b;
+}
+
 /* Tool Sidebars */
 .tool-sidebar {
     position: absolute;
     top: 0;
-    left: -350px;
+    right: -350px;
     width: 350px;
     height: 100%;
     background: #2a2a2a;
-    border-right: 1px solid #404040;
-    transition: left 0.3s ease;
+    border-left: 1px solid #404040;
+    transition: right 0.3s ease;
     z-index: 999;
     display: flex;
     flex-direction: column;
-    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.3);
+    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.3);
 }
 
 /* Make sidebars appear to extend from the tool navigation */
 .tool-sidebar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: linear-gradient(to bottom, #007bff, #0056b3);
-    z-index: 1000;
+    display: none;
 }
 
 .tool-sidebar.open {
-    left: 0;
+    right: 0;
 }
 
-/* When tool sidebar is open, shift the notes area to the right */
+/* When tool sidebar is open, shift the notes area to the left */
 .right-panel:has(.tool-sidebar.open) .notes-area {
-    margin-left: 350px;
+    margin-right: 350px;
 }
 
 /* Fallback for browsers that don't support :has() */
 .notes-area.sidebar-open {
-    margin-left: 350px;
+    margin-right: 350px;
+}
+
+/* When tool sidebar is open, hide the tool navigation buttons on the right */
+.right-panel:has(.tool-sidebar.open) .tool-navigation {
+    overflow: hidden;
+    width: calc(100% - 350px);
+}
+
+/* Fallback for browsers that don't support :has() */
+.tool-navigation.sidebar-open {
+    overflow: hidden;
+    width: calc(100% - 350px);
 }
 
 .sidebar-header {
