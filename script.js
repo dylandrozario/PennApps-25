@@ -19,6 +19,7 @@ class PDFUploader {
         this.initializePrintTool();
         this.initializeFormTool();
         this.initializeFlashcardTool();
+        this.initializeNotesEditor();
     }
     
     initializeElements() {
@@ -29,14 +30,16 @@ class PDFUploader {
         
         // PDF viewer elements
         this.pdfViewerSection = document.getElementById('pdfViewerSection');
-        this.pdfTitle = document.getElementById('pdfTitle');
         this.prevPage = document.getElementById('prevPage');
         this.nextPage = document.getElementById('nextPage');
         this.pageInfo = document.getElementById('pageInfo');
+        this.currentPageNum = document.getElementById('currentPageNum');
+        this.totalPagesNum = document.getElementById('totalPagesNum');
         this.zoomOut = document.getElementById('zoomOut');
         this.zoomIn = document.getElementById('zoomIn');
         this.zoomLevel = document.getElementById('zoomLevel');
         this.pdfCanvas = document.getElementById('pdfCanvas');
+        this.insertNewDocBtn = document.getElementById('insertNewDocBtn');
         
         // Summary panel elements
         this.summaryPanel = document.getElementById('summaryPanel');
@@ -94,6 +97,20 @@ class PDFUploader {
         this.zoomIn.addEventListener('click', () => {
             this.zoomInPDF();
         });
+        
+        // Current page number click event for direct page navigation
+        if (this.currentPageNum) {
+            this.currentPageNum.addEventListener('click', () => {
+                this.showPageInput();
+            });
+        }
+        
+        // Insert New Doc button event
+        if (this.insertNewDocBtn) {
+            this.insertNewDocBtn.addEventListener('click', () => {
+                this.closePDFViewer();
+            });
+        }
         
     }
     
@@ -284,7 +301,6 @@ class PDFUploader {
             this.currentPage = 1;
             this.scale = 1.0;
             
-            this.pdfTitle.textContent = file.name;
             this.pdfViewerSection.style.display = 'block';
             
             // Hide the main container (home page)
@@ -403,15 +419,109 @@ class PDFUploader {
     }
     
     updatePageControls() {
-        this.pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
-        this.prevPage.disabled = this.currentPage <= 1;
-        this.nextPage.disabled = this.currentPage >= this.totalPages;
+        if (this.currentPageNum) {
+            this.currentPageNum.textContent = this.currentPage;
+        }
+        if (this.totalPagesNum) {
+            this.totalPagesNum.textContent = this.totalPages;
+        }
+        
+        if (this.prevPage) {
+            this.prevPage.disabled = this.currentPage <= 1;
+        }
+        
+        if (this.nextPage) {
+            this.nextPage.disabled = this.currentPage >= this.totalPages;
+        }
     }
     
     updateZoomControls() {
         this.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
     }
     
+    showPageInput() {
+        if (!this.currentPDF || this.totalPages === 0) return;
+        
+        const currentPageElement = this.currentPageNum;
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '1';
+        input.max = this.totalPages.toString();
+        input.value = this.currentPage.toString();
+        input.className = 'page-input';
+        input.style.cssText = `
+            width: 40px;
+            padding: 0.25rem 0.25rem;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 0.9rem;
+            background: white;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+            font-weight: 500;
+        `;
+        
+        // Replace current page number with input
+        currentPageElement.innerHTML = '';
+        currentPageElement.appendChild(input);
+        currentPageElement.classList.add('editing');
+        
+        // Focus and select the input
+        input.focus();
+        input.select();
+        
+        // Handle input events
+        const handleInput = () => {
+            const pageNum = parseInt(input.value);
+            if (pageNum >= 1 && pageNum <= this.totalPages) {
+                this.goToPage(pageNum);
+                this.restorePageInfo();
+            }
+        };
+        
+        const handleKeyDown = (e) => {
+            if (e.key === 'Enter') {
+                handleInput();
+            } else if (e.key === 'Escape') {
+                this.restorePageInfo();
+            }
+        };
+        
+        const handleBlur = () => {
+            setTimeout(() => this.restorePageInfo(), 100);
+        };
+        
+        input.addEventListener('blur', handleBlur);
+        input.addEventListener('keydown', handleKeyDown);
+        
+        // Store references for cleanup
+        this.currentPageInput = { input, handleInput, handleKeyDown, handleBlur };
+    }
+    
+    restorePageInfo() {
+        const currentPageElement = this.currentPageNum;
+        currentPageElement.classList.remove('editing');
+        currentPageElement.textContent = this.currentPage;
+        
+        // Clean up event listeners if they exist
+        if (this.currentPageInput) {
+            const { input, handleBlur, handleKeyDown } = this.currentPageInput;
+            input.removeEventListener('blur', handleBlur);
+            input.removeEventListener('keydown', handleKeyDown);
+            this.currentPageInput = null;
+        }
+    }
+    
+    async goToPage(pageNum) {
+        if (pageNum < 1 || pageNum > this.totalPages) return;
+        
+        this.currentPage = pageNum;
+        await this.renderPage();
+        this.updatePageControls();
+        this.resetScrollPosition();
+    }
     
     closePDFViewer() {
         this.pdfViewerSection.style.display = 'none';
@@ -2573,6 +2683,539 @@ Generate ${cardCount} flashcards:`;
             generateBtn.disabled = false;
             generateBtn.textContent = '🎯 Generate Flashcards';
         }
+    }
+    
+    // Notes Editor Methods
+    initializeNotesEditor() {
+        this.notesState = {
+            autoSaveTimeout: null,
+            isDirty: false,
+            lastSaved: null
+        };
+        
+        this.bindNotesEvents();
+        this.loadNotesFromStorage();
+        this.updateWordCount();
+    }
+    
+    bindNotesEvents() {
+        const notesEditor = document.getElementById('notesEditor');
+        const clearBtn = document.getElementById('clearNotesBtn');
+        const exportBtn = document.getElementById('exportNotesBtn');
+        const boldBtn = document.getElementById('boldBtn');
+        const italicBtn = document.getElementById('italicBtn');
+        const underlineBtn = document.getElementById('underlineBtn');
+        const strikethroughBtn = document.getElementById('strikethroughBtn');
+        const bulletListBtn = document.getElementById('bulletListBtn');
+        const numberListBtn = document.getElementById('numberListBtn');
+        const indentBtn = document.getElementById('indentBtn');
+        const outdentBtn = document.getElementById('outdentBtn');
+        const alignLeftBtn = document.getElementById('alignLeftBtn');
+        const alignCenterBtn = document.getElementById('alignCenterBtn');
+        const alignRightBtn = document.getElementById('alignRightBtn');
+        const fontSize = document.getElementById('fontSize');
+        const fontFamily = document.getElementById('fontFamily');
+        const textColor = document.getElementById('textColor');
+        const highlightColor = document.getElementById('highlightColor');
+        
+        if (notesEditor) {
+            notesEditor.addEventListener('input', () => {
+                this.updateWordCount();
+                this.autoSave();
+            });
+            
+            notesEditor.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                document.execCommand('insertText', false, text);
+            });
+        }
+        
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearNotes());
+        }
+        
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportNotes());
+        }
+        
+        // Format buttons
+        if (boldBtn) {
+            boldBtn.addEventListener('click', () => this.toggleFormat('bold'));
+        }
+        
+        if (italicBtn) {
+            italicBtn.addEventListener('click', () => this.toggleFormat('italic'));
+        }
+        
+        if (underlineBtn) {
+            underlineBtn.addEventListener('click', () => this.toggleFormat('underline'));
+        }
+        
+        if (strikethroughBtn) {
+            strikethroughBtn.addEventListener('click', () => this.toggleFormat('strikeThrough'));
+        }
+        
+        // List buttons
+        if (bulletListBtn) {
+            bulletListBtn.addEventListener('click', () => this.toggleFormat('insertUnorderedList'));
+        }
+        
+        if (numberListBtn) {
+            numberListBtn.addEventListener('click', () => this.toggleFormat('insertOrderedList'));
+        }
+        
+        if (indentBtn) {
+            indentBtn.addEventListener('click', () => document.execCommand('indent', false, null));
+        }
+        
+        if (outdentBtn) {
+            outdentBtn.addEventListener('click', () => document.execCommand('outdent', false, null));
+        }
+        
+        // Alignment buttons
+        if (alignLeftBtn) {
+            alignLeftBtn.addEventListener('click', () => this.toggleFormat('justifyLeft'));
+        }
+        
+        if (alignCenterBtn) {
+            alignCenterBtn.addEventListener('click', () => this.toggleFormat('justifyCenter'));
+        }
+        
+        if (alignRightBtn) {
+            alignRightBtn.addEventListener('click', () => this.toggleFormat('justifyRight'));
+        }
+        
+        // Font controls
+        if (fontSize) {
+            fontSize.addEventListener('change', (e) => {
+                document.execCommand('fontSize', false, '7');
+                const fontElements = document.querySelectorAll('#notesEditor font[size="7"]');
+                fontElements.forEach(el => el.removeAttribute('size'));
+                fontElements.forEach(el => el.style.fontSize = e.target.value + 'px');
+            });
+        }
+        
+        if (fontFamily) {
+            fontFamily.addEventListener('change', (e) => {
+                document.execCommand('fontName', false, e.target.value);
+            });
+        }
+        
+        if (textColor) {
+            textColor.addEventListener('change', (e) => {
+                document.execCommand('foreColor', false, e.target.value);
+            });
+        }
+        
+        if (highlightColor) {
+            highlightColor.addEventListener('change', (e) => {
+                document.execCommand('backColor', false, e.target.value);
+            });
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 'b':
+                        e.preventDefault();
+                        this.toggleFormat('bold');
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        this.toggleFormat('italic');
+                        break;
+                    case 'u':
+                        e.preventDefault();
+                        this.toggleFormat('underline');
+                        break;
+                    case 'e':
+                        e.preventDefault();
+                        this.exportNotes();
+                        break;
+                }
+            }
+            
+            // Tab key for indentation
+            if (e.key === 'Tab') {
+                if (notesEditor && document.activeElement === notesEditor) {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        document.execCommand('outdent', false, null);
+                    } else {
+                        document.execCommand('indent', false, null);
+                    }
+                }
+            }
+        });
+    }
+    
+    toggleFormat(command) {
+        document.execCommand(command, false, null);
+        this.updateFormatButtons();
+    }
+    
+    updateFormatButtons() {
+        const boldBtn = document.getElementById('boldBtn');
+        const italicBtn = document.getElementById('italicBtn');
+        const underlineBtn = document.getElementById('underlineBtn');
+        const strikethroughBtn = document.getElementById('strikethroughBtn');
+        const bulletListBtn = document.getElementById('bulletListBtn');
+        const numberListBtn = document.getElementById('numberListBtn');
+        const alignLeftBtn = document.getElementById('alignLeftBtn');
+        const alignCenterBtn = document.getElementById('alignCenterBtn');
+        const alignRightBtn = document.getElementById('alignRightBtn');
+        
+        if (boldBtn) {
+            boldBtn.classList.toggle('active', document.queryCommandState('bold'));
+        }
+        
+        if (italicBtn) {
+            italicBtn.classList.toggle('active', document.queryCommandState('italic'));
+        }
+        
+        if (underlineBtn) {
+            underlineBtn.classList.toggle('active', document.queryCommandState('underline'));
+        }
+        
+        if (strikethroughBtn) {
+            strikethroughBtn.classList.toggle('active', document.queryCommandState('strikeThrough'));
+        }
+        
+        if (bulletListBtn) {
+            bulletListBtn.classList.toggle('active', document.queryCommandState('insertUnorderedList'));
+        }
+        
+        if (numberListBtn) {
+            numberListBtn.classList.toggle('active', document.queryCommandState('insertOrderedList'));
+        }
+        
+        if (alignLeftBtn) {
+            alignLeftBtn.classList.toggle('active', document.queryCommandState('justifyLeft'));
+        }
+        
+        if (alignCenterBtn) {
+            alignCenterBtn.classList.toggle('active', document.queryCommandState('justifyCenter'));
+        }
+        
+        if (alignRightBtn) {
+            alignRightBtn.classList.toggle('active', document.queryCommandState('justifyRight'));
+        }
+    }
+    
+    updateWordCount() {
+        const notesEditor = document.getElementById('notesEditor');
+        const wordCount = document.getElementById('wordCount');
+        
+        if (notesEditor && wordCount) {
+            const text = notesEditor.textContent || notesEditor.innerText || '';
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            wordCount.textContent = `${words} words`;
+        }
+    }
+    
+    autoSave() {
+        const autoSaveStatus = document.getElementById('autoSaveStatus');
+        
+        if (autoSaveStatus) {
+            autoSaveStatus.textContent = 'Saving...';
+            autoSaveStatus.className = 'auto-save saving';
+        }
+        
+        // Clear existing timeout
+        if (this.notesState.autoSaveTimeout) {
+            clearTimeout(this.notesState.autoSaveTimeout);
+        }
+        
+        // Set new timeout
+        this.notesState.autoSaveTimeout = setTimeout(() => {
+            this.saveNotesToStorage();
+            
+            if (autoSaveStatus) {
+                autoSaveStatus.textContent = 'Auto-saved';
+                autoSaveStatus.className = 'auto-save';
+            }
+            
+            this.notesState.lastSaved = new Date();
+        }, 1000);
+    }
+    
+    
+    saveNotesToStorage() {
+        const notesEditor = document.getElementById('notesEditor');
+        if (notesEditor) {
+            const notesData = {
+                content: notesEditor.innerHTML,
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('pdfTutor_notes', JSON.stringify(notesData));
+            this.notesState.isDirty = false;
+        }
+    }
+    
+    loadNotesFromStorage() {
+        const notesEditor = document.getElementById('notesEditor');
+        const savedNotes = localStorage.getItem('pdfTutor_notes');
+        
+        if (notesEditor && savedNotes) {
+            try {
+                const notesData = JSON.parse(savedNotes);
+                notesEditor.innerHTML = notesData.content;
+                this.notesState.lastSaved = new Date(notesData.timestamp);
+                this.updateWordCount();
+            } catch (error) {
+                console.error('Error loading notes:', error);
+            }
+        }
+    }
+    
+    clearNotes() {
+        if (confirm('Are you sure you want to clear all notes? This action cannot be undone.')) {
+            const notesEditor = document.getElementById('notesEditor');
+            const autoSaveStatus = document.getElementById('autoSaveStatus');
+            
+            if (notesEditor) {
+                notesEditor.innerHTML = '<p>Start typing your notes here...</p>';
+                this.updateWordCount();
+                this.saveNotesToStorage();
+            }
+            
+            if (autoSaveStatus) {
+                autoSaveStatus.textContent = 'Cleared';
+                autoSaveStatus.className = 'auto-save';
+                
+                setTimeout(() => {
+                    autoSaveStatus.textContent = 'Auto-saved';
+                }, 2000);
+            }
+        }
+    }
+    
+    exportNotes() {
+        const notesEditor = document.getElementById('notesEditor');
+        if (!notesEditor) return;
+        
+        // Get the content
+        const content = notesEditor.innerHTML;
+        const textContent = notesEditor.textContent || notesEditor.innerText || '';
+        
+        // Create export options modal
+        this.showExportModal(content, textContent);
+    }
+    
+    showExportModal(htmlContent, textContent) {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        `;
+        
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+            background: #2a2a2a;
+            padding: 2rem;
+            border-radius: 12px;
+            color: #ffffff;
+            max-width: 500px;
+            width: 90%;
+        `;
+        
+        modalContent.innerHTML = `
+            <h3 style="margin: 0 0 1.5rem 0; color: #ffffff;">Export Notes</h3>
+            <p style="margin-bottom: 1.5rem; color: #ccc;">Choose how you'd like to export your notes:</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <button id="exportHTML" style="
+                    background: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                ">Export as HTML Document</button>
+                
+                <button id="exportTXT" style="
+                    background: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                ">Export as Text File</button>
+                
+                <button id="exportPDF" style="
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                ">Export as PDF</button>
+                
+                <button id="copyToClipboard" style="
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                ">Copy to Clipboard</button>
+                
+                <button id="closeExportModal" style="
+                    background: #4a4a4a;
+                    color: white;
+                    border: none;
+                    padding: 0.75rem 1rem;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                    margin-top: 1rem;
+                ">Cancel</button>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Add event listeners
+        modalContent.querySelector('#exportHTML').addEventListener('click', () => {
+            this.downloadAsHTML(htmlContent);
+            modal.remove();
+        });
+        
+        modalContent.querySelector('#exportTXT').addEventListener('click', () => {
+            this.downloadAsText(textContent);
+            modal.remove();
+        });
+        
+        modalContent.querySelector('#exportPDF').addEventListener('click', () => {
+            this.downloadAsPDF(textContent);
+            modal.remove();
+        });
+        
+        modalContent.querySelector('#copyToClipboard').addEventListener('click', () => {
+            this.copyToClipboard(textContent);
+            modal.remove();
+        });
+        
+        modalContent.querySelector('#closeExportModal').addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+    
+    downloadAsHTML(htmlContent) {
+        const blob = new Blob([`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>PDF Tutor Notes</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; }
+                    h1, h2, h3, h4, h5, h6 { color: #333; }
+                    ul, ol { margin: 1rem 0; padding-left: 2rem; }
+                    blockquote { border-left: 4px solid #ddd; padding-left: 1rem; margin: 1rem 0; color: #666; }
+                </style>
+            </head>
+            <body>
+                <h1>PDF Tutor Notes</h1>
+                <p><em>Exported on ${new Date().toLocaleString()}</em></p>
+                <hr>
+                ${htmlContent}
+            </body>
+            </html>
+        `], { type: 'text/html' });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pdf-tutor-notes-${new Date().toISOString().split('T')[0]}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    downloadAsText(textContent) {
+        const blob = new Blob([`PDF Tutor Notes\nExported on ${new Date().toLocaleString()}\n\n${textContent}`], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pdf-tutor-notes-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    downloadAsPDF(textContent) {
+        // Simple PDF generation using browser print
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>PDF Tutor Notes</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; }
+                    @media print { body { margin: 0; padding: 1rem; } }
+                </style>
+            </head>
+            <body>
+                <h1>PDF Tutor Notes</h1>
+                <p><em>Exported on ${new Date().toLocaleString()}</em></p>
+                <hr>
+                <pre style="white-space: pre-wrap; font-family: inherit;">${textContent}</pre>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 500);
+    }
+    
+    copyToClipboard(textContent) {
+        navigator.clipboard.writeText(textContent).then(() => {
+            // Show success message
+            const autoSaveStatus = document.getElementById('autoSaveStatus');
+            if (autoSaveStatus) {
+                const originalText = autoSaveStatus.textContent;
+                autoSaveStatus.textContent = 'Copied to clipboard!';
+                autoSaveStatus.className = 'auto-save';
+                
+                setTimeout(() => {
+                    autoSaveStatus.textContent = originalText;
+                }, 2000);
+            }
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy to clipboard');
+        });
     }
     
 }

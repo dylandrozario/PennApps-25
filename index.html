@@ -43,26 +43,123 @@
     
     <!-- PDF Viewer Section - Fullscreen (outside main container) -->
     <div class="pdf-viewer-fullscreen" id="pdfViewerSection" style="display: none;">
-        <div class="pdf-controls">
-            <span id="pdfTitle" class="pdf-title">PDF Viewer</span>
-            <button id="prevPage" class="btn btn-secondary">Previous</button>
-            <span id="pageInfo">Page 1 of 1</span>
-            <button id="nextPage" class="btn btn-secondary">Next</button>
-            <div class="zoom-controls">
-                <button id="zoomOut" class="btn btn-secondary">-</button>
-                <span id="zoomLevel">100%</span>
-                <button id="zoomIn" class="btn btn-secondary">+</button>
+        <!-- Header Bar -->
+        <div class="header-bar">
+            <div class="header-logo">
+                <div class="logo-icon">📚</div>
+                <h1>PDF TUTOR</h1>
             </div>
-            <div id="summarize-button-container"></div>
-            <div id="quiz-button-container"></div>
-            <div id="print-button-container"></div>
-            <div id="form-button-container"></div>
-            <div id="flashcard-button-container"></div>
+            <div class="header-actions">
+                <button class="insert-new-doc-btn" id="insertNewDocBtn">📁 Insert New Doc</button>
+                <button class="share-btn" id="shareBtn">Share</button>
+                <div class="user-profile" id="userProfile">👤</div>
+            </div>
         </div>
-        <div class="pdf-viewer-layout">
-            <div class="pdf-container-fullscreen">
-                <canvas id="pdfCanvas"></canvas>
+        
+        <!-- Main Layout: Split View -->
+        <div class="main-layout">
+            <!-- Left Panel: PDF Viewer -->
+            <div class="left-panel">
+                <!-- PDF Controls Area -->
+                <div class="pdf-controls-area">
+                    <div class="page-controls">
+                        <button id="prevPage" class="btn btn-secondary page-nav-btn" title="Previous Page">‹</button>
+                        <span id="pageInfo" class="page-info">
+                            Page <span id="currentPageNum" class="current-page-clickable" title="Click to enter page number">1</span> of <span id="totalPagesNum">1</span>
+                        </span>
+                        <button id="nextPage" class="btn btn-secondary page-nav-btn" title="Next Page">›</button>
+                    </div>
+                    <div class="zoom-controls">
+                        <button id="zoomOut" class="btn btn-secondary">-</button>
+                        <span id="zoomLevel">100%</span>
+                        <button id="zoomIn" class="btn btn-secondary">+</button>
+                    </div>
+                </div>
+                
+                <!-- PDF Container -->
+                <div class="pdf-container-fullscreen">
+                    <canvas id="pdfCanvas"></canvas>
+                </div>
             </div>
+            
+            <!-- Right Panel: Tools & Chat -->
+            <div class="right-panel">
+                <!-- Tool Navigation -->
+                <div class="tool-navigation">
+                    <div id="summarize-button-container"></div>
+                    <div id="quiz-button-container"></div>
+                    <div id="print-button-container"></div>
+                    <div id="form-button-container"></div>
+                    <div id="flashcard-button-container"></div>
+                </div>
+                
+                <!-- Notes Editor Area -->
+                <div class="notes-area">
+                    <div class="notes-header">
+                        <div class="notes-icon">Notes</div>
+                        <h3>My Notes</h3>
+                        <div class="notes-actions">
+                            <button class="notes-btn" id="exportNotesBtn" title="Export Notes">Export</button>
+                            <button class="notes-btn" id="clearNotesBtn" title="Clear Notes">Clear</button>
+                        </div>
+                    </div>
+                    
+                    <div class="notes-editor-container">
+                        <div class="notes-toolbar">
+                            <div class="format-group">
+                                <button class="format-btn" id="boldBtn" title="Bold (Ctrl+B)">B</button>
+                                <button class="format-btn" id="italicBtn" title="Italic (Ctrl+I)">I</button>
+                                <button class="format-btn" id="underlineBtn" title="Underline (Ctrl+U)">U</button>
+                                <button class="format-btn" id="strikethroughBtn" title="Strikethrough">S</button>
+                            </div>
+                            <div class="format-group">
+                                <button class="format-btn" id="bulletListBtn" title="Bullet List">List</button>
+                                <button class="format-btn" id="numberListBtn" title="Number List">1.</button>
+                                <button class="format-btn" id="indentBtn" title="Increase Indent">Indent</button>
+                                <button class="format-btn" id="outdentBtn" title="Decrease Indent">Outdent</button>
+                            </div>
+                            <div class="format-group">
+                                <select class="font-select" id="fontSize">
+                                    <option value="12">12px</option>
+                                    <option value="14" selected>14px</option>
+                                    <option value="16">16px</option>
+                                    <option value="18">18px</option>
+                                    <option value="20">20px</option>
+                                    <option value="24">24px</option>
+                                    <option value="32">32px</option>
+                                </select>
+                                <select class="font-select" id="fontFamily">
+                                    <option value="Arial" selected>Arial</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Georgia">Georgia</option>
+                                    <option value="Helvetica">Helvetica</option>
+                                    <option value="Verdana">Verdana</option>
+                                    <option value="Courier New">Courier New</option>
+                                </select>
+                            </div>
+                            <div class="format-group">
+                                <input type="color" class="color-picker" id="textColor" value="#333333" title="Text Color">
+                                <input type="color" class="color-picker" id="highlightColor" value="#ffff00" title="Highlight Color">
+                            </div>
+                            <div class="format-group">
+                                <button class="format-btn" id="alignLeftBtn" title="Align Left">Left</button>
+                                <button class="format-btn" id="alignCenterBtn" title="Align Center">Center</button>
+                                <button class="format-btn" id="alignRightBtn" title="Align Right">Right</button>
+                            </div>
+                        </div>
+                        
+                        <div class="notes-editor" id="notesEditor" contenteditable="true" spellcheck="true">
+                            <p>Start typing your notes here...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="notes-status">
+                        <div class="word-count" id="wordCount">0 words</div>
+                        <div class="auto-save" id="autoSaveStatus">Auto-saved</div>
+                    </div>
+                </div>
+            </div>
+        </div>
             
             <!-- Comment Sidebar -->
             <div class="comment-sidebar" id="commentSidebar" style="display: none;">
