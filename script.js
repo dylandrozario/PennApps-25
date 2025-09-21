@@ -4068,9 +4068,9 @@ User's Question: ${query}`;
                 <div class="sidebar-option-group">
                     <label for="diagramComplexity">Complexity:</label>
                     <select id="diagramComplexity" class="sidebar-form-select">
-                        <option value="simple">Simple (5-10 nodes)</option>
-                        <option value="medium" selected>Medium (10-20 nodes)</option>
-                        <option value="detailed">Detailed (20+ nodes)</option>
+                        <option value="simple">Simple (3 nodes)</option>
+                        <option value="medium" selected>Medium (6 nodes)</option>
+                        <option value="detailed">Detailed (10 nodes)</option>
                     </select>
                 </div>
             </div>
@@ -4137,12 +4137,6 @@ User's Question: ${query}`;
             </div>
             
             <div class="sidebar-actions">
-                <button id="add-node-btn" class="sidebar-btn secondary">
-                    + Add Node
-                </button>
-                <button id="edit-diagram-btn" class="sidebar-btn secondary">
-                    ✏️ Edit
-                </button>
                 <button id="export-diagram-btn" class="sidebar-btn secondary">
                     💾 Export
                 </button>
@@ -4154,6 +4148,16 @@ User's Question: ${query}`;
         
         // Bind diagram view events
         this.bindDiagramViewEvents();
+        
+        // Add click event to diagram canvas to open popup
+        const diagramCanvasSidebar = document.getElementById('diagramCanvasSidebar');
+        if (diagramCanvasSidebar) {
+            diagramCanvasSidebar.addEventListener('click', () => {
+                this.openDiagramPopup();
+            });
+            diagramCanvasSidebar.style.cursor = 'pointer';
+            diagramCanvasSidebar.title = 'Click to open in full view';
+        }
     }
     
     generateDiagramNodesHTML() {
@@ -4166,18 +4170,8 @@ User's Question: ${query}`;
     }
     
     bindDiagramViewEvents() {
-        const addNodeBtn = document.getElementById('add-node-btn');
-        const editBtn = document.getElementById('edit-diagram-btn');
         const exportBtn = document.getElementById('export-diagram-btn');
         const newDiagramBtn = document.getElementById('new-diagram-btn');
-        
-        if (addNodeBtn) {
-            addNodeBtn.addEventListener('click', () => this.addManualNode());
-        }
-        
-        if (editBtn) {
-            editBtn.addEventListener('click', () => this.toggleEditMode());
-        }
         
         if (exportBtn) {
             exportBtn.addEventListener('click', () => this.exportDiagram());
@@ -4232,11 +4226,11 @@ User's Question: ${query}`;
         const diagramType = this.diagramState.diagramType;
         const complexity = this.diagramState.complexity;
         
-        let nodeCount = 10;
+        let nodeCount = 6;
         switch (complexity) {
-            case 'simple': nodeCount = 8; break;
-            case 'medium': nodeCount = 15; break;
-            case 'detailed': nodeCount = 25; break;
+            case 'simple': nodeCount = 3; break;
+            case 'medium': nodeCount = 6; break;
+            case 'detailed': nodeCount = 10; break;
         }
         
         const prompt = `Analyze the following PDF text and create a ${diagramType} diagram structure. 
@@ -4246,7 +4240,7 @@ Diagram Type: ${diagramType}
 - flowchart: Sequential process with decision points and flows
 - timeline: Chronological events with dates and descriptions
 
-Complexity: ${complexity} (approximately ${nodeCount} nodes)
+Complexity: ${complexity} (exactly ${nodeCount} nodes)
 
 Requirements:
 1. Extract key concepts, terms, and relationships from the text
@@ -4254,6 +4248,7 @@ Requirements:
 3. Include meaningful connections between nodes
 4. Focus on the most important information
 5. Make nodes descriptive but concise
+6. MUST create exactly ${nodeCount} nodes - no more, no less
 
 Format the response as JSON with this structure:
 {
@@ -4371,10 +4366,6 @@ Generate ${diagramType} diagram:`;
             this.selectNode(nodeData.id);
         });
         
-        nodeElement.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            this.editNode(nodeData.id);
-        });
         
         // Make draggable if in edit mode
         if (this.diagramState.isEditMode) {
@@ -4431,21 +4422,6 @@ Generate ${diagramType} diagram:`;
         }
     }
     
-    editNode(nodeId) {
-        const node = document.getElementById(nodeId);
-        if (!node) return;
-        
-        const newText = prompt('Edit node text:', node.textContent);
-        if (newText && newText.trim()) {
-            node.textContent = newText.trim();
-            
-            // Update node data
-            const nodeData = this.diagramState.nodes.find(n => n.id === nodeId);
-            if (nodeData) {
-                nodeData.label = newText.trim();
-            }
-        }
-    }
     
     makeNodeDraggable(nodeElement) {
         let isDragging = false;
@@ -4491,43 +4467,6 @@ Generate ${diagramType} diagram:`;
         });
     }
     
-    addManualNode() {
-        const canvas = document.getElementById('diagramCanvas');
-        const canvasRect = canvas.getBoundingClientRect();
-        
-        const nodeText = prompt('Enter node text:');
-        if (!nodeText || !nodeText.trim()) return;
-        
-        const nodeId = `node_${Date.now()}`;
-        const newNode = {
-            id: nodeId,
-            label: nodeText.trim(),
-            type: 'branch',
-            x: Math.random() * (canvasRect.width - 200) + 100,
-            y: Math.random() * (canvasRect.height - 100) + 100
-        };
-        
-        this.diagramState.nodes.push(newNode);
-        this.createDiagramNode(newNode);
-        this.updateDiagramInfo();
-    }
-    
-    toggleEditMode() {
-        this.diagramState.isEditMode = !this.diagramState.isEditMode;
-        const editBtn = document.getElementById('edit-diagram-btn');
-        
-        if (editBtn) {
-            editBtn.textContent = this.diagramState.isEditMode ? '✏️ Exit Edit' : '✏️ Edit';
-            editBtn.style.backgroundColor = this.diagramState.isEditMode ? '#28a745' : '#404040';
-        }
-        
-        // Make nodes draggable in edit mode
-        document.querySelectorAll('.diagram-node').forEach(node => {
-            if (this.diagramState.isEditMode) {
-                this.makeNodeDraggable(node);
-            }
-        });
-    }
     
     exportDiagram() {
         // Create a simple export as text
@@ -5043,6 +4982,243 @@ Text: ${pdfText}`;
                 r => r.title !== resourceTitle
             );
             localStorage.setItem('pdfTutor_savedResources', JSON.stringify(this.resourcesState.savedResources));
+        }
+    }
+    
+    // Diagram Popup Methods
+    openDiagramPopup() {
+        const modal = document.getElementById('diagramPopupModal');
+        const canvas = document.getElementById('diagramPopupCanvas');
+        
+        if (!modal || !canvas) return;
+        
+        // Clear previous content
+        canvas.innerHTML = '';
+        
+        // Render diagram in popup with proper scaling
+        this.renderDiagramInPopup(canvas);
+        
+        // Show modal
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        
+        // Bind close event
+        this.bindDiagramPopupEvents();
+    }
+    
+    renderDiagramInPopup(canvas) {
+        if (!this.diagramState.nodes || this.diagramState.nodes.length === 0) {
+            canvas.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">No diagram data available</div>';
+            return;
+        }
+        
+        // Get canvas dimensions
+        const canvasRect = canvas.getBoundingClientRect();
+        const padding = 80;
+        const availableWidth = Math.max(canvasRect.width - (padding * 2), 400); // Minimum width
+        const availableHeight = Math.max(canvasRect.height - (padding * 2), 300); // Minimum height
+        
+        // Create a better layout using a force-directed approach
+        const nodePositions = this.calculateOptimalNodePositions(availableWidth, availableHeight, padding);
+        
+        // Render nodes with optimal positioning
+        this.diagramState.nodes.forEach((node, index) => {
+            const nodeElement = document.createElement('div');
+            nodeElement.className = `diagram-node-popup ${node.type || 'branch'}`;
+            nodeElement.textContent = node.label;
+            
+            const position = nodePositions[index];
+            nodeElement.style.left = `${position.x}px`;
+            nodeElement.style.top = `${position.y}px`;
+            
+            canvas.appendChild(nodeElement);
+        });
+        
+        // Render connections with optimal positioning
+        this.diagramState.connections.forEach(connection => {
+            const fromIndex = this.diagramState.nodes.findIndex(n => n.id === connection.from);
+            const toIndex = this.diagramState.nodes.findIndex(n => n.id === connection.to);
+            
+            if (fromIndex !== -1 && toIndex !== -1) {
+                const connectionElement = document.createElement('div');
+                connectionElement.className = 'diagram-connection-popup';
+                
+                const fromPos = nodePositions[fromIndex];
+                const toPos = nodePositions[toIndex];
+                
+                // Calculate connection line
+                const length = Math.sqrt((toPos.x - fromPos.x) ** 2 + (toPos.y - fromPos.y) ** 2);
+                const angle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x) * 180 / Math.PI;
+                
+                // Position connection line from center of nodes
+                const nodeCenterOffset = 50; // Approximate center of node
+                const fromX = fromPos.x + nodeCenterOffset;
+                const fromY = fromPos.y + 25; // Half of node height
+                const toX = toPos.x + nodeCenterOffset;
+                const toY = toPos.y + 25;
+                
+                const connectionLength = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+                const connectionAngle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+                
+                connectionElement.style.left = `${fromX}px`;
+                connectionElement.style.top = `${fromY}px`;
+                connectionElement.style.width = `${connectionLength}px`;
+                connectionElement.style.transform = `rotate(${connectionAngle}deg)`;
+                
+                canvas.appendChild(connectionElement);
+            }
+        });
+    }
+    
+    calculateOptimalNodePositions(availableWidth, availableHeight, padding) {
+        const nodes = this.diagramState.nodes;
+        const connections = this.diagramState.connections;
+        const nodeCount = nodes.length;
+        
+        if (nodeCount === 0) return [];
+        
+        // Initialize positions
+        let positions = [];
+        
+        if (nodeCount === 1) {
+            // Single node - center it
+            positions = [{
+                x: padding + availableWidth / 2 - 50,
+                y: padding + availableHeight / 2 - 25
+            }];
+        } else if (nodeCount === 2) {
+            // Two nodes - place them side by side
+            positions = [
+                { x: padding + availableWidth / 3, y: padding + availableHeight / 2 - 25 },
+                { x: padding + (availableWidth * 2) / 3, y: padding + availableHeight / 2 - 25 }
+            ];
+        } else {
+            // Multiple nodes - use circular layout with force-directed adjustments
+            positions = this.calculateCircularLayout(nodes, connections, availableWidth, availableHeight, padding);
+        }
+        
+        return positions;
+    }
+    
+    calculateCircularLayout(nodes, connections, availableWidth, availableHeight, padding) {
+        const nodeCount = nodes.length;
+        const centerX = padding + availableWidth / 2;
+        const centerY = padding + availableHeight / 2;
+        
+        // Calculate radius based on available space
+        const maxRadius = Math.min(availableWidth, availableHeight) / 2 - 100;
+        const radius = Math.max(maxRadius, 150); // Minimum radius
+        
+        // Place nodes in a circle
+        let positions = [];
+        for (let i = 0; i < nodeCount; i++) {
+            const angle = (2 * Math.PI * i) / nodeCount;
+            const x = centerX + radius * Math.cos(angle) - 50; // Offset for node center
+            const y = centerY + radius * Math.sin(angle) - 25;
+            positions.push({ x, y });
+        }
+        
+        // Apply force-directed layout to improve positioning
+        positions = this.applyForceDirectedLayout(positions, connections, availableWidth, availableHeight, padding);
+        
+        return positions;
+    }
+    
+    applyForceDirectedLayout(positions, connections, availableWidth, availableHeight, padding) {
+        const iterations = 50;
+        const k = 100; // Spring constant
+        const c = 0.1; // Damping factor
+        
+        for (let iter = 0; iter < iterations; iter++) {
+            let forces = positions.map(() => ({ x: 0, y: 0 }));
+            
+            // Repulsive forces between all nodes
+            for (let i = 0; i < positions.length; i++) {
+                for (let j = i + 1; j < positions.length; j++) {
+                    const dx = positions[i].x - positions[j].x;
+                    const dy = positions[i].y - positions[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        const force = (k * k) / distance;
+                        const fx = (dx / distance) * force;
+                        const fy = (dy / distance) * force;
+                        
+                        forces[i].x += fx;
+                        forces[i].y += fy;
+                        forces[j].x -= fx;
+                        forces[j].y -= fy;
+                    }
+                }
+            }
+            
+            // Attractive forces for connected nodes
+            connections.forEach(connection => {
+                const fromIndex = this.diagramState.nodes.findIndex(n => n.id === connection.from);
+                const toIndex = this.diagramState.nodes.findIndex(n => n.id === connection.to);
+                
+                if (fromIndex !== -1 && toIndex !== -1) {
+                    const dx = positions[toIndex].x - positions[fromIndex].x;
+                    const dy = positions[toIndex].y - positions[fromIndex].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 0) {
+                        const force = (distance * distance) / k;
+                        const fx = (dx / distance) * force;
+                        const fy = (dy / distance) * force;
+                        
+                        forces[fromIndex].x += fx;
+                        forces[fromIndex].y += fy;
+                        forces[toIndex].x -= fx;
+                        forces[toIndex].y -= fy;
+                    }
+                }
+            });
+            
+            // Apply forces with damping
+            for (let i = 0; i < positions.length; i++) {
+                positions[i].x += forces[i].x * c;
+                positions[i].y += forces[i].y * c;
+                
+                // Keep nodes within bounds
+                positions[i].x = Math.max(padding, Math.min(padding + availableWidth - 100, positions[i].x));
+                positions[i].y = Math.max(padding, Math.min(padding + availableHeight - 50, positions[i].y));
+            }
+        }
+        
+        return positions;
+    }
+    
+    bindDiagramPopupEvents() {
+        const closeBtn = document.getElementById('closeDiagramPopup');
+        const modal = document.getElementById('diagramPopupModal');
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeDiagramPopup());
+        }
+        
+        if (modal) {
+            // Close when clicking outside the content
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    this.closeDiagramPopup();
+                }
+            });
+            
+            // Close with Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.style.display === 'block') {
+                    this.closeDiagramPopup();
+                }
+            });
+        }
+    }
+    
+    closeDiagramPopup() {
+        const modal = document.getElementById('diagramPopupModal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = ''; // Restore scrolling
         }
     }
     

@@ -935,7 +935,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1rem;
+        padding: 1rem;
     border-bottom: 1px solid #404040;
 }
 
@@ -995,7 +995,7 @@ body {
 .notes-main-content {
     flex: 1;
     display: flex;
-    flex-direction: column;
+        flex-direction: column;
     padding: 4.5rem 2rem 2rem 2rem;
     gap: 1.5rem;
     transition: margin-left 0.3s ease;
@@ -1066,8 +1066,8 @@ body {
 }
 
 .notes-header-left {
-    display: flex;
-    align-items: center;
+        display: flex;
+        align-items: center;
     gap: 0.75rem;
 }
 
@@ -1118,7 +1118,7 @@ body {
 .notes-editor-container {
     flex: 1;
     display: flex;
-    flex-direction: column;
+        flex-direction: column;
     background-color: #2a2a2a;
     border: 1px solid #404040;
     border-radius: 16px;
@@ -2645,6 +2645,32 @@ body {
     overflow: auto;
     position: relative;
     margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.diagram-canvas-sidebar:hover {
+    border-color: #667eea;
+    box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+}
+
+.diagram-canvas-sidebar::after {
+    content: "Click to expand";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(102, 126, 234, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.diagram-canvas-sidebar:hover::after {
+    opacity: 1;
 }
 
 .diagram-node-sidebar {
@@ -2884,5 +2910,185 @@ body {
     .right-panel:has(.tool-sidebar.open) .notes-area,
     .notes-area.sidebar-open {
         margin-left: 250px;
+    }
+}
+
+/* Diagram Popup Modal Styles */
+.diagram-popup-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+}
+
+.diagram-popup-content {
+    position: relative;
+    background-color: white;
+    margin: 2% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1200px;
+    height: 90%;
+    max-height: 800px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    animation: diagramPopupSlideIn 0.3s ease-out;
+}
+
+@keyframes diagramPopupSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.diagram-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.diagram-popup-header h3 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.diagram-popup-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.diagram-popup-close:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.diagram-popup-body {
+    height: calc(100% - 80px);
+    overflow: auto;
+    padding: 0;
+}
+
+.diagram-popup-canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    position: relative;
+    background: linear-gradient(45deg, #f8f9fa 25%, transparent 25%), 
+                linear-gradient(-45deg, #f8f9fa 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #f8f9fa 75%), 
+                linear-gradient(-45deg, transparent 75%, #f8f9fa 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    overflow: auto;
+    padding: 20px;
+}
+
+.diagram-popup-canvas .diagram-node-popup {
+    position: absolute;
+    background: white;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #333;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 100px;
+    text-align: center;
+    word-wrap: break-word;
+    max-width: 200px;
+    z-index: 10;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.diagram-popup-canvas .diagram-node-popup:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    border-color: #764ba2;
+}
+
+.diagram-popup-canvas .diagram-node-popup.root {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-color: #5a67d8;
+}
+
+.diagram-popup-canvas .diagram-node-popup.branch {
+    background: linear-gradient(135deg, #48bb78, #38a169);
+    color: white;
+    border-color: #2f855a;
+}
+
+.diagram-popup-canvas .diagram-node-popup.leaf {
+    background: linear-gradient(135deg, #ed8936, #dd6b20);
+    color: white;
+    border-color: #c05621;
+}
+
+.diagram-popup-canvas .diagram-connection-popup {
+    position: absolute;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    transform-origin: left center;
+    z-index: 5;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive design for popup */
+@media (max-width: 768px) {
+    .diagram-popup-content {
+        width: 95%;
+        height: 95%;
+        margin: 2.5% auto;
+    }
+    
+    .diagram-popup-header {
+        padding: 15px 20px;
+    }
+    
+    .diagram-popup-header h3 {
+        font-size: 1.2rem;
+    }
+    
+    .diagram-popup-canvas {
+        padding: 15px;
+        min-height: 400px;
+    }
+    
+    .diagram-popup-canvas .diagram-node-popup {
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        max-width: 150px;
     }
 }
