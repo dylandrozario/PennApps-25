@@ -1255,7 +1255,7 @@ Generate ${questionCount} questions:`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 0.7,
+                            temperature: 1.0,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 2048,
@@ -1779,7 +1779,7 @@ Generate ${questionCount} questions:`;
         printButton.className = 'btn btn-secondary print-btn tool-control-btn';
         printButton.innerHTML = '🖨️';
         printButton.title = 'Print PDF';
-        printButton.addEventListener('click', () => this.openPrintDialog());
+        printButton.addEventListener('click', () => this.executePrint());
         
         // Add the button to the tool controls container
         const toolControlsContainer = document.getElementById('tool-controls-container');
@@ -1853,9 +1853,15 @@ Generate ${questionCount} questions:`;
         }
         
         try {
-            // Create a simple print window
-            const printWindow = window.open('', '_blank');
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
             
+            if (!printWindow) {
+                alert('Please allow popups for this site to enable printing.');
+                return;
+            }
+            
+            // Write the HTML structure
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
@@ -1865,24 +1871,54 @@ Generate ${questionCount} questions:`;
                         @media print {
                             @page {
                                 size: A4;
-                                margin: 1in;
+                                margin: 0.5in;
                             }
                             body { margin: 0; }
                             .page { page-break-after: always; }
                             .page:last-child { page-break-after: avoid; }
                         }
-                        body { margin: 0; padding: 0; }
-                        .page { margin: 0; padding: 0; }
-                        canvas { max-width: 100%; height: auto; }
+                        body { 
+                            margin: 0; 
+                            padding: 20px; 
+                            font-family: Arial, sans-serif;
+                        }
+                        .page { 
+                            margin: 0; 
+                            padding: 0; 
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                        }
+                        canvas { 
+                            max-width: 100%; 
+                            height: auto; 
+                            border: 1px solid #ccc;
+                        }
+                        .loading {
+                            text-align: center;
+                            padding: 50px;
+                            font-size: 18px;
+                        }
                     </style>
                 </head>
                 <body>
+                    <div class="loading">Preparing pages for printing...</div>
+                </body>
+                </html>
             `);
+            
+            printWindow.document.close();
+            
+            // Wait a moment for the window to load
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Clear the loading message and add pages
+            printWindow.document.body.innerHTML = '';
             
             // Render all pages
             for (let pageNum = 1; pageNum <= this.totalPages; pageNum++) {
                 const page = await this.currentPDF.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 1.0 });
+                const viewport = page.getViewport({ scale: 1.5 }); // Higher scale for better print quality
                 
                 const canvas = document.createElement('canvas');
                 canvas.width = viewport.width;
@@ -1896,30 +1932,28 @@ Generate ${questionCount} questions:`;
                 
                 await page.render(renderContext).promise;
                 
-                printWindow.document.write(`
-                    <div class="page">
-                        <canvas width="${viewport.width}" height="${viewport.height}"></canvas>
-                    </div>
-                `);
-                
-                // Copy canvas content to the print window
-                const printCanvas = printWindow.document.querySelector('.page:last-child canvas');
+                // Create a new canvas for the print window
+                const printCanvas = document.createElement('canvas');
+                printCanvas.width = viewport.width;
+                printCanvas.height = viewport.height;
                 const printContext = printCanvas.getContext('2d');
                 printContext.drawImage(canvas, 0, 0);
+                
+                // Add the page to the print window
+                const pageDiv = printWindow.document.createElement('div');
+                pageDiv.className = 'page';
+                pageDiv.appendChild(printCanvas);
+                printWindow.document.body.appendChild(pageDiv);
             }
             
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            
-            // Wait for content to load, then print
-            printWindow.onload = () => {
+            // Wait for all pages to render, then trigger print
+            setTimeout(() => {
+                printWindow.print();
+                // Close the window after printing
                 setTimeout(() => {
-                    printWindow.print();
                     printWindow.close();
-                }, 500);
-            };
-            
-            this.closePrintDialog();
+                }, 1000);
+            }, 500);
             
         } catch (error) {
             console.error('Error printing PDF:', error);
@@ -2375,6 +2409,7 @@ Generate ${questionCount} questions:`;
         this.flashcardState = {
             isOpen: false,
             flashcards: [],
+            previousFlashcards: [],
             currentCardIndex: 0,
             correctCount: 0,
             incorrectCount: 0,
@@ -2474,6 +2509,11 @@ Generate ${questionCount} questions:`;
                 <button id="generate-flashcards-btn" class="sidebar-btn">
                     🎯 Generate Flashcards
                 </button>
+                ${this.flashcardState.previousFlashcards && this.flashcardState.previousFlashcards.length > 0 ? `
+                    <button id="clear-flashcard-history-btn" class="sidebar-btn secondary">
+                        🗑️ Clear History
+                    </button>
+                ` : ''}
             </div>
             
             <div id="flashcardLoading" class="sidebar-loading" style="display: none;">
@@ -2488,11 +2528,16 @@ Generate ${questionCount} questions:`;
     
     bindFlashcardsSidebarEvents() {
         const generateFlashcardsBtn = document.getElementById('generate-flashcards-btn');
+        const clearHistoryBtn = document.getElementById('clear-flashcard-history-btn');
         const flashcardCountSelect = document.getElementById('flashcardCount');
         const flashcardDifficultySelect = document.getElementById('flashcardDifficulty');
         
         if (generateFlashcardsBtn) {
             generateFlashcardsBtn.addEventListener('click', () => this.generateFlashcards());
+        }
+        
+        if (clearHistoryBtn) {
+            clearHistoryBtn.addEventListener('click', () => this.clearFlashcardHistory());
         }
         
         if (flashcardCountSelect) {
@@ -2505,6 +2550,13 @@ Generate ${questionCount} questions:`;
             flashcardDifficultySelect.addEventListener('change', (e) => {
                 this.flashcardState.difficulty = e.target.value;
             });
+        }
+    }
+    
+    clearFlashcardHistory() {
+        if (confirm('Are you sure you want to clear the flashcard history? This will allow generating similar questions again.')) {
+            this.flashcardState.previousFlashcards = [];
+            this.showFlashcardsGenerationSection(); // Refresh the generation section
         }
     }
     
@@ -2579,10 +2631,10 @@ Generate ${questionCount} questions:`;
             
             <div class="flashcard-actions">
                 <button class="sidebar-btn success" onclick="pdfUploader.markCardCorrect()">
-                    ✅ Correct
+                    ✓
                 </button>
                 <button class="sidebar-btn danger" onclick="pdfUploader.markCardIncorrect()">
-                    ❌ Incorrect
+                    ✗
                 </button>
             </div>
             
@@ -2633,20 +2685,28 @@ Generate ${questionCount} questions:`;
             </div>
             
             <div class="sidebar-actions">
+                <button id="continue-studying-btn" class="sidebar-btn">
+                    📚 Continue Studying
+                </button>
                 ${this.flashcardState.incorrectCards.length > 0 ? `
                     <button id="replay-incorrect-btn" class="sidebar-btn secondary">
                         🔄 Review Incorrect (${this.flashcardState.incorrectCards.length})
                     </button>
                 ` : ''}
-                <button id="new-flashcards-btn" class="sidebar-btn">
+                <button id="new-flashcards-btn" class="sidebar-btn secondary">
                     🆕 New Set
                 </button>
             </div>
         `;
         
         // Bind results events
+        const continueBtn = document.getElementById('continue-studying-btn');
         const replayBtn = document.getElementById('replay-incorrect-btn');
         const newSetBtn = document.getElementById('new-flashcards-btn');
+        
+        if (continueBtn) {
+            continueBtn.addEventListener('click', () => this.continueStudying());
+        }
         
         if (replayBtn) {
             replayBtn.addEventListener('click', () => this.startReviewMode());
@@ -2655,6 +2715,20 @@ Generate ${questionCount} questions:`;
         if (newSetBtn) {
             newSetBtn.addEventListener('click', () => this.newFlashcardSet());
         }
+    }
+    
+    continueStudying() {
+        // Reset counters to 0 and start studying the same set again
+        this.flashcardState.currentCardIndex = 0;
+        this.flashcardState.correctCount = 0;
+        this.flashcardState.incorrectCount = 0;
+        this.flashcardState.incorrectCards = [];
+        this.flashcardState.isFlipped = false;
+        this.flashcardState.isReviewMode = false;
+        this.flashcardState.reviewIndex = 0;
+        
+        // Show the study section with the first card
+        this.showStudySection();
     }
     
     showReviewSection() {
@@ -2687,6 +2761,12 @@ Generate ${questionCount} questions:`;
             
             // Generate flashcards using Gemini AI
             const flashcards = await this.generateFlashcardQuestions(pdfText);
+            
+            // Store previous flashcards to avoid duplicates in future generations
+            if (this.flashcardState.flashcards && this.flashcardState.flashcards.length > 0) {
+                this.flashcardState.previousFlashcards = this.flashcardState.previousFlashcards || [];
+                this.flashcardState.previousFlashcards.push(...this.flashcardState.flashcards);
+            }
             
             this.flashcardState.flashcards = flashcards;
             this.flashcardState.currentCardIndex = 0;
@@ -2726,7 +2806,54 @@ Generate ${questionCount} questions:`;
         const cardCount = this.flashcardState.cardCount;
         const difficulty = this.flashcardState.difficulty;
         
+        // Get previously generated flashcards to avoid duplicates
+        const previousFlashcards = this.flashcardState.previousFlashcards || [];
+        let avoidDuplicatesText = '';
+        
+        if (previousFlashcards.length > 0) {
+            const previousQuestions = previousFlashcards.map(card => card.question).join('\n- ');
+            avoidDuplicatesText = `
+
+CRITICAL REQUIREMENTS FOR THIS GENERATION:
+1. DO NOT generate questions similar to these previously generated questions:
+- ${previousQuestions}
+
+2. Focus on DIFFERENT sections, topics, or concepts from the PDF text
+3. Use different question formats (e.g., if previous were "What is...", use "How does...", "Why is...", "Compare...", etc.)
+4. Target different difficulty levels or aspects of the same concepts
+5. Generate questions that require different types of thinking (analysis, synthesis, application, evaluation)
+
+Generate ${cardCount} COMPLETELY NEW flashcards that explore different aspects of the content.`;
+        }
+        
+        // Add randomization to make each generation different
+        const generationId = Date.now();
+        const randomSeed = Math.floor(Math.random() * 1000);
+        
+        // Vary the prompt structure based on generation number
+        const generationCount = this.flashcardState.previousFlashcards ? Math.floor(this.flashcardState.previousFlashcards.length / cardCount) + 1 : 1;
+        
+        let focusAreas = '';
+        let questionTypes = '';
+        
+        if (generationCount === 1) {
+            focusAreas = 'Focus on fundamental concepts, definitions, and basic facts.';
+            questionTypes = 'Use "What is...", "Define...", "List..." question formats.';
+        } else if (generationCount === 2) {
+            focusAreas = 'Focus on processes, relationships, and how things work.';
+            questionTypes = 'Use "How does...", "Explain the process...", "Describe the relationship..." question formats.';
+        } else if (generationCount === 3) {
+            focusAreas = 'Focus on applications, examples, and practical uses.';
+            questionTypes = 'Use "Give an example...", "How is this applied...", "What happens when..." question formats.';
+        } else {
+            focusAreas = 'Focus on analysis, comparison, and critical thinking.';
+            questionTypes = 'Use "Compare...", "Analyze...", "Evaluate...", "Why is..." question formats.';
+        }
+        
         const prompt = `Generate ${cardCount} flashcards based on the following PDF text content. 
+
+Generation Focus (Set ${generationCount}): ${focusAreas}
+Question Types: ${questionTypes}
 
 Difficulty Level: ${difficulty}
 - Basic: Simple facts, definitions, key terms
@@ -2740,6 +2867,7 @@ Requirements:
 4. Focus on the most important information from the text
 5. Include a mix of fact-based and conceptual questions
 6. Make sure all information is directly from the provided text
+7. Vary the topics and concepts covered to provide comprehensive coverage${avoidDuplicatesText}
 
 Format the response as a JSON array with this structure:
 [
@@ -2768,7 +2896,7 @@ Generate ${cardCount} flashcards:`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 0.7,
+                            temperature: 1.0,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 2048,
@@ -2902,7 +3030,7 @@ Generate ${cardCount} flashcards:`;
         if (this.flashcardState.currentCardIndex >= this.flashcardState.flashcards.length) {
             this.showResults();
         } else {
-            this.displayCurrentCard();
+            this.showStudySection(); // This will update the sidebar content with new card and stats
         }
     }
     
@@ -2929,8 +3057,56 @@ Generate ${cardCount} flashcards:`;
         
         this.flashcardState.isReviewMode = true;
         this.flashcardState.reviewIndex = 0;
-        this.showReviewSection();
-        this.displayReviewCard();
+        this.showReviewSectionSidebar();
+    }
+    
+    showReviewSectionSidebar() {
+        const sidebarContent = document.getElementById('flashcardsSidebarContent');
+        if (!sidebarContent) return;
+        
+        const cardIndex = this.flashcardState.incorrectCards[this.flashcardState.reviewIndex];
+        const card = this.flashcardState.flashcards[cardIndex];
+        
+        sidebarContent.innerHTML = `
+            <div class="quiz-progress">
+                <div class="quiz-progress-bar">
+                    <div class="quiz-progress-fill" style="width: ${((this.flashcardState.reviewIndex + 1) / this.flashcardState.incorrectCards.length) * 100}%"></div>
+                </div>
+                <div style="color: #cccccc; font-size: 0.9rem; text-align: center;">
+                    Reviewing ${this.flashcardState.reviewIndex + 1} of ${this.flashcardState.incorrectCards.length} incorrect cards
+                </div>
+            </div>
+            
+            <div class="flashcard-container" id="reviewCard">
+                <div class="flashcard-question">${card.question}</div>
+            </div>
+            
+            <div class="flashcard-actions">
+                <button class="sidebar-btn success" onclick="pdfUploader.markReviewCorrect()">
+                    ✓
+                </button>
+                <button class="sidebar-btn danger" onclick="pdfUploader.markReviewIncorrect()">
+                    ✗
+                </button>
+            </div>
+            
+            <div class="sidebar-stats" style="margin-top: 1rem;">
+                <div class="sidebar-stat">
+                    <span class="sidebar-stat-number">${this.flashcardState.correctCount}</span>
+                    <span class="sidebar-stat-label">Correct</span>
+                </div>
+                <div class="sidebar-stat">
+                    <span class="sidebar-stat-number">${this.flashcardState.incorrectCount}</span>
+                    <span class="sidebar-stat-label">Incorrect</span>
+                </div>
+            </div>
+        `;
+        
+        // Bind card flip event
+        const reviewCard = document.getElementById('reviewCard');
+        if (reviewCard) {
+            reviewCard.addEventListener('click', () => this.flipReviewCard());
+        }
     }
     
     displayReviewCard() {
@@ -2967,7 +3143,18 @@ Generate ${cardCount} flashcards:`;
     flipReviewCard() {
         const reviewCard = document.getElementById('reviewCard');
         if (reviewCard) {
-            reviewCard.classList.toggle('flipped');
+            const cardIndex = this.flashcardState.incorrectCards[this.flashcardState.reviewIndex];
+            const card = this.flashcardState.flashcards[cardIndex];
+            
+            if (!this.flashcardState.isFlipped) {
+                // Show answer
+                reviewCard.innerHTML = `<div class="flashcard-answer">${card.answer}</div>`;
+                this.flashcardState.isFlipped = true;
+            } else {
+                // Show question
+                reviewCard.innerHTML = `<div class="flashcard-question">${card.question}</div>`;
+                this.flashcardState.isFlipped = false;
+            }
         }
     }
     
@@ -2993,12 +3180,12 @@ Generate ${cardCount} flashcards:`;
             if (this.flashcardState.reviewIndex >= this.flashcardState.incorrectCards.length) {
                 this.flashcardState.reviewIndex = 0;
             }
-            this.displayReviewCard();
+            this.showReviewSectionSidebar(); // Use sidebar version
         }
     }
     
     newFlashcardSet() {
-        this.showGenerationSection();
+        this.showFlashcardsGenerationSection();
         this.flashcardState.flashcards = [];
         this.flashcardState.currentCardIndex = 0;
         this.flashcardState.correctCount = 0;
@@ -3007,6 +3194,7 @@ Generate ${cardCount} flashcards:`;
         this.flashcardState.isFlipped = false;
         this.flashcardState.isReviewMode = false;
         this.flashcardState.reviewIndex = 0;
+        // Note: We don't clear previousFlashcards to maintain duplicate avoidance
     }
     
     showFlashcardLoading() {
@@ -3790,7 +3978,7 @@ User's Question: ${query}`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 0.7,
+                            temperature: 1.0,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 1024,
@@ -4296,7 +4484,7 @@ Generate ${diagramType} diagram:`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 0.7,
+                            temperature: 1.0,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 2048,
@@ -4726,8 +4914,8 @@ Generate ${diagramType} diagram:`;
             <div class="sidebar-section">
                 <div class="subject-info">
                     <h4>📚 ${subject || 'Topic'}</h4>
-                </div>
-            </div>
+                    </div>
+                    </div>
             
             <div class="video-section">
                 ${video ? `
@@ -4737,7 +4925,7 @@ Generate ${diagramType} diagram:`;
                         <a href="${video.url}" target="_blank" class="video-link">
                             ▶️ Watch Video
                         </a>
-                    </div>
+                </div>
                 ` : '<p>No video found for this topic.</p>'}
             </div>
             
@@ -4905,7 +5093,7 @@ Text: ${pdfText}`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 0.7,
+                            temperature: 1.0,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 512,
