@@ -582,6 +582,12 @@ class PDFUploader {
         if (lengthSelect) {
             lengthSelect.addEventListener('change', () => this.updateSummaryLength());
         }
+        
+        // Close summary panel button
+        const closeSummaryBtn = document.getElementById('close-summary-btn');
+        if (closeSummaryBtn) {
+            closeSummaryBtn.addEventListener('click', () => this.closeSummaryPanel());
+        }
     }
     
     toggleSummaryPanel() {
@@ -2696,6 +2702,11 @@ Generate ${cardCount} flashcards:`;
         this.bindNotesEvents();
         this.loadNotesFromStorage();
         this.updateWordCount();
+        
+        // Initialize button states after a short delay
+        setTimeout(() => {
+            this.updateFormatButtons();
+        }, 100);
     }
     
     bindNotesEvents() {
@@ -2722,12 +2733,28 @@ Generate ${cardCount} flashcards:`;
             notesEditor.addEventListener('input', () => {
                 this.updateWordCount();
                 this.autoSave();
+                this.updateFormatButtons();
             });
             
             notesEditor.addEventListener('paste', (e) => {
                 e.preventDefault();
                 const text = (e.clipboardData || window.clipboardData).getData('text/plain');
                 document.execCommand('insertText', false, text);
+            });
+            
+            // Update button states when selection changes
+            notesEditor.addEventListener('mouseup', () => {
+                this.updateFormatButtons();
+            });
+            
+            notesEditor.addEventListener('keyup', () => {
+                this.updateFormatButtons();
+            });
+            
+            // Ensure focus when clicking in editor
+            notesEditor.addEventListener('click', () => {
+                notesEditor.focus();
+                this.updateFormatButtons();
             });
         }
         
@@ -2789,10 +2816,18 @@ Generate ${cardCount} flashcards:`;
         // Font controls
         if (fontSize) {
             fontSize.addEventListener('change', (e) => {
+                const size = e.target.value + 'px';
+                document.execCommand('styleWithCSS', false, true);
                 document.execCommand('fontSize', false, '7');
-                const fontElements = document.querySelectorAll('#notesEditor font[size="7"]');
-                fontElements.forEach(el => el.removeAttribute('size'));
-                fontElements.forEach(el => el.style.fontSize = e.target.value + 'px');
+                
+                // Clean up the font size implementation
+                setTimeout(() => {
+                    const fontElements = document.querySelectorAll('#notesEditor font[size="7"]');
+                    fontElements.forEach(el => {
+                        el.removeAttribute('size');
+                        el.style.fontSize = size;
+                    });
+                }, 10);
             });
         }
         
@@ -2852,55 +2887,73 @@ Generate ${cardCount} flashcards:`;
     }
     
     toggleFormat(command) {
-        document.execCommand(command, false, null);
-        this.updateFormatButtons();
+        // Ensure the editor has focus
+        const notesEditor = document.getElementById('notesEditor');
+        if (notesEditor) {
+            notesEditor.focus();
+        }
+        
+        // Execute the command
+        const success = document.execCommand(command, false, null);
+        
+        // Update button states after a short delay to ensure the command is processed
+        setTimeout(() => {
+            this.updateFormatButtons();
+        }, 10);
+        
+        return success;
     }
     
     updateFormatButtons() {
-        const boldBtn = document.getElementById('boldBtn');
-        const italicBtn = document.getElementById('italicBtn');
-        const underlineBtn = document.getElementById('underlineBtn');
-        const strikethroughBtn = document.getElementById('strikethroughBtn');
-        const bulletListBtn = document.getElementById('bulletListBtn');
-        const numberListBtn = document.getElementById('numberListBtn');
-        const alignLeftBtn = document.getElementById('alignLeftBtn');
-        const alignCenterBtn = document.getElementById('alignCenterBtn');
-        const alignRightBtn = document.getElementById('alignRightBtn');
-        
-        if (boldBtn) {
-            boldBtn.classList.toggle('active', document.queryCommandState('bold'));
-        }
-        
-        if (italicBtn) {
-            italicBtn.classList.toggle('active', document.queryCommandState('italic'));
-        }
-        
-        if (underlineBtn) {
-            underlineBtn.classList.toggle('active', document.queryCommandState('underline'));
-        }
-        
-        if (strikethroughBtn) {
-            strikethroughBtn.classList.toggle('active', document.queryCommandState('strikeThrough'));
-        }
-        
-        if (bulletListBtn) {
-            bulletListBtn.classList.toggle('active', document.queryCommandState('insertUnorderedList'));
-        }
-        
-        if (numberListBtn) {
-            numberListBtn.classList.toggle('active', document.queryCommandState('insertOrderedList'));
-        }
-        
-        if (alignLeftBtn) {
-            alignLeftBtn.classList.toggle('active', document.queryCommandState('justifyLeft'));
-        }
-        
-        if (alignCenterBtn) {
-            alignCenterBtn.classList.toggle('active', document.queryCommandState('justifyCenter'));
-        }
-        
-        if (alignRightBtn) {
-            alignRightBtn.classList.toggle('active', document.queryCommandState('justifyRight'));
+        try {
+            const boldBtn = document.getElementById('boldBtn');
+            const italicBtn = document.getElementById('italicBtn');
+            const underlineBtn = document.getElementById('underlineBtn');
+            const strikethroughBtn = document.getElementById('strikethroughBtn');
+            const bulletListBtn = document.getElementById('bulletListBtn');
+            const numberListBtn = document.getElementById('numberListBtn');
+            const alignLeftBtn = document.getElementById('alignLeftBtn');
+            const alignCenterBtn = document.getElementById('alignCenterBtn');
+            const alignRightBtn = document.getElementById('alignRightBtn');
+            
+            // Update formatting buttons
+            if (boldBtn) {
+                boldBtn.classList.toggle('active', document.queryCommandState('bold'));
+            }
+            
+            if (italicBtn) {
+                italicBtn.classList.toggle('active', document.queryCommandState('italic'));
+            }
+            
+            if (underlineBtn) {
+                underlineBtn.classList.toggle('active', document.queryCommandState('underline'));
+            }
+            
+            if (strikethroughBtn) {
+                strikethroughBtn.classList.toggle('active', document.queryCommandState('strikeThrough'));
+            }
+            
+            if (bulletListBtn) {
+                bulletListBtn.classList.toggle('active', document.queryCommandState('insertUnorderedList'));
+            }
+            
+            if (numberListBtn) {
+                numberListBtn.classList.toggle('active', document.queryCommandState('insertOrderedList'));
+            }
+            
+            if (alignLeftBtn) {
+                alignLeftBtn.classList.toggle('active', document.queryCommandState('justifyLeft'));
+            }
+            
+            if (alignCenterBtn) {
+                alignCenterBtn.classList.toggle('active', document.queryCommandState('justifyCenter'));
+            }
+            
+            if (alignRightBtn) {
+                alignRightBtn.classList.toggle('active', document.queryCommandState('justifyRight'));
+            }
+        } catch (error) {
+            console.log('Error updating format buttons:', error);
         }
     }
     
@@ -3216,6 +3269,12 @@ Generate ${cardCount} flashcards:`;
             console.error('Failed to copy text: ', err);
             alert('Failed to copy to clipboard');
         });
+    }
+    
+    closeSummaryPanel() {
+        if (this.summaryPanel) {
+            this.summaryPanel.style.display = 'none';
+        }
     }
     
 }
