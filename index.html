@@ -101,6 +101,8 @@
                 <h1>PDF TUTOR</h1>
             </div>
             <div class="header-actions">
+                <button class="api-test-btn" id="apiTestBtn" title="Test API Connection">🔗 Test API</button>
+                <div class="api-status" id="apiStatus" title="API Rate Limit Status">📊 <span id="apiCallCount">0</span>/<span id="apiMaxCalls">10</span></div>
                 <button class="insert-new-doc-btn" id="insertNewDocBtn">📁 Insert New Doc</button>
                 <button class="share-btn" id="shareBtn">Share</button>
                 <div class="user-profile" id="userProfile">👤</div>
@@ -125,6 +127,9 @@
                         <span id="zoomLevel">100%</span>
                         <button id="zoomIn" class="btn btn-secondary">+</button>
                     </div>
+                    <div class="tool-controls">
+                        <div id="tool-controls-container"></div>
+                    </div>
                 </div>
                 
                 <!-- PDF Container -->
@@ -137,76 +142,103 @@
             <div class="right-panel">
                 <!-- Tool Navigation -->
                 <div class="tool-navigation">
-                    <div id="summarize-button-container"></div>
                     <div id="quiz-button-container"></div>
-                    <div id="print-button-container"></div>
-                    <div id="form-button-container"></div>
                     <div id="flashcard-button-container"></div>
+                    <div id="diagram-button-container"></div>
+                    <div id="resources-button-container"></div>
+                </div>
+                
+                <!-- Tool Sidebars -->
+                <!-- Quiz Sidebar -->
+                <div class="tool-sidebar quiz-sidebar" id="quizSidebar">
+                    <div class="sidebar-header">
+                        <h3>🧠 Quiz Me</h3>
+                        <button class="sidebar-close-btn" id="close-quiz-sidebar">&times;</button>
+                    </div>
+                    <div class="sidebar-content" id="quizSidebarContent">
+                        <!-- Quiz content will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Flashcards Sidebar -->
+                <div class="tool-sidebar flashcards-sidebar" id="flashcardsSidebar">
+                    <div class="sidebar-header">
+                        <h3>🎴 Flashcards</h3>
+                        <button class="sidebar-close-btn" id="close-flashcards-sidebar">&times;</button>
+                    </div>
+                    <div class="sidebar-content" id="flashcardsSidebarContent">
+                        <!-- Flashcards content will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Diagrams Sidebar -->
+                <div class="tool-sidebar diagrams-sidebar" id="diagramsSidebar">
+                    <div class="sidebar-header">
+                        <h3>📊 Diagrams</h3>
+                        <button class="sidebar-close-btn" id="close-diagrams-sidebar">&times;</button>
+                    </div>
+                    <div class="sidebar-content" id="diagramsSidebarContent">
+                        <!-- Diagrams content will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Resources Sidebar -->
+                <div class="tool-sidebar resources-sidebar" id="resourcesSidebar">
+                    <div class="sidebar-header">
+                        <h3>📚 More Resources</h3>
+                        <button class="sidebar-close-btn" id="close-resources-sidebar">&times;</button>
+                    </div>
+                    <div class="sidebar-content" id="resourcesSidebarContent">
+                        <!-- Resources content will be populated here -->
+                    </div>
                 </div>
                 
                 <!-- Notes Editor Area -->
                 <div class="notes-area">
-                    <div class="notes-header">
-                        <div class="notes-icon">Notes</div>
-                        <h3>My Notes</h3>
-                        <div class="notes-actions">
-                            <button class="notes-btn" id="exportNotesBtn" title="Export Notes">Export</button>
-                            <button class="notes-btn" id="clearNotesBtn" title="Clear Notes">Clear</button>
+                    <!-- Sidebar Toggle Button -->
+                    <button class="sidebar-toggle" id="sidebarToggle">
+                        <span class="sidebar-icon">📝</span>
+                    </button>
+                    
+                    <!-- Sidebar for Saved Notes -->
+                    <div class="notes-sidebar" id="notesSidebar">
+                        <div class="sidebar-header">
+                            <h4>Saved Notes</h4>
+                            <button class="sidebar-close" id="sidebarClose">×</button>
+                        </div>
+                        <div class="saved-notes-list" id="savedNotesList">
+                            <!-- Saved notes will be populated here -->
                         </div>
                     </div>
                     
-                    <div class="notes-editor-container">
-                        <div class="notes-toolbar">
-                            <div class="format-group">
-                                <button class="format-btn" id="boldBtn" title="Bold (Ctrl+B)">B</button>
-                                <button class="format-btn" id="italicBtn" title="Italic (Ctrl+I)">I</button>
-                                <button class="format-btn" id="underlineBtn" title="Underline (Ctrl+U)">U</button>
-                                <button class="format-btn" id="strikethroughBtn" title="Strikethrough">S</button>
-                            </div>
-                            <div class="format-group">
-                                <button class="format-btn" id="bulletListBtn" title="Bullet List">List</button>
-                                <button class="format-btn" id="numberListBtn" title="Number List">1.</button>
-                                <button class="format-btn" id="indentBtn" title="Increase Indent">Indent</button>
-                                <button class="format-btn" id="outdentBtn" title="Decrease Indent">Outdent</button>
-                            </div>
-                            <div class="format-group">
-                                <select class="font-select" id="fontSize">
-                                    <option value="12">12px</option>
-                                    <option value="14" selected>14px</option>
-                                    <option value="16">16px</option>
-                                    <option value="18">18px</option>
-                                    <option value="20">20px</option>
-                                    <option value="24">24px</option>
-                                    <option value="32">32px</option>
-                                </select>
-                                <select class="font-select" id="fontFamily">
-                                    <option value="Arial" selected>Arial</option>
-                                    <option value="Times New Roman">Times New Roman</option>
-                                    <option value="Georgia">Georgia</option>
-                                    <option value="Helvetica">Helvetica</option>
-                                    <option value="Verdana">Verdana</option>
-                                    <option value="Courier New">Courier New</option>
-                                </select>
-                            </div>
-                            <div class="format-group">
-                                <input type="color" class="color-picker" id="textColor" value="#333333" title="Text Color">
-                                <input type="color" class="color-picker" id="highlightColor" value="#ffff00" title="Highlight Color">
-                            </div>
-                            <div class="format-group">
-                                <button class="format-btn" id="alignLeftBtn" title="Align Left">Left</button>
-                                <button class="format-btn" id="alignCenterBtn" title="Align Center">Center</button>
-                                <button class="format-btn" id="alignRightBtn" title="Align Right">Right</button>
+                    <!-- Main Notes Content -->
+                    <div class="notes-main-content">
+                        <!-- Rounded Text Editor -->
+                        <div class="notes-editor-container">
+                            <div class="notes-editor" id="notesEditor" contenteditable="true" spellcheck="true">
+                                <p>Start typing your notes here...</p>
                             </div>
                         </div>
                         
-                        <div class="notes-editor" id="notesEditor" contenteditable="true" spellcheck="true">
-                            <p>Start typing your notes here...</p>
+                        <!-- ChatGPT-style AI Search -->
+                        <div class="ai-search-container">
+                            <div class="ai-search-input-container">
+                                <div class="ai-search-icon">+</div>
+                                <input type="text" id="aiSearchInput" class="ai-search-input" placeholder="Ask anything">
+                                <div class="ai-search-actions">
+                                    <button class="ai-action-btn" title="Voice Input">🎤</button>
+                                </div>
+                            </div>
+                            <div id="aiSearchResults" class="ai-search-results" style="display: none;"></div>
                         </div>
-                    </div>
-                    
-                    <div class="notes-status">
-                        <div class="word-count" id="wordCount">0 words</div>
-                        <div class="auto-save" id="autoSaveStatus">Auto-saved</div>
+                        
+                        <!-- Simple Actions -->
+                        <div class="notes-actions">
+                            <button class="action-btn" id="summarizeBtn" title="Summarize PDF">Summarize</button>
+                            <button class="action-btn" id="exportNotesBtn" title="Export Notes">Export</button>
+                            <button class="action-btn" id="clearNotesBtn" title="Clear Notes">Clear</button>
+                            <button class="action-btn" id="saveNotesBtn" title="Save Notes">Save</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -679,6 +711,7 @@
                     </div>
                 </div>
             </div>
+            
         </div>
     </div>
     

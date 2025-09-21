@@ -574,6 +574,42 @@ body {
     gap: 1rem;
 }
 
+.api-test-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.api-test-btn:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+}
+
+.api-status {
+    background: #28a745;
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: center;
+}
+
+.api-status.warning {
+    background: #ffc107;
+    color: #212529;
+}
+
+.api-status.error {
+    background: #dc3545;
+}
+
 .insert-new-doc-btn {
     background-color: #007bff;
     color: #ffffff;
@@ -712,6 +748,42 @@ body {
     gap: 0.25rem;
 }
 
+.tool-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 4px;
+}
+
+#tool-controls-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tool-control-btn {
+    width: 24px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    background-color: #4a4a4a !important;
+    color: #ffffff !important;
+    border: 1px solid #666 !important;
+    border-radius: 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: bold !important;
+    font-size: 0.9rem !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    min-width: 24px !important;
+}
+
+.tool-control-btn:hover {
+    background-color: #5a5a5a !important;
+    border-color: #777 !important;
+}
+
 .zoom-controls button {
     width: 24px;
     height: 24px;
@@ -763,7 +835,7 @@ body {
 
 /* Right Panel - Tools & Chat */
 .right-panel {
-    flex: 1;
+    flex: 0.5;
     display: flex;
     flex-direction: column;
     background-color: #2a2a2a;
@@ -780,6 +852,25 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    position: relative;
+}
+
+/* Add visual connection to sidebars */
+.tool-navigation::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #007bff, #0056b3);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* Show connection when any sidebar is open */
+.right-panel:has(.tool-sidebar.open) .tool-navigation::after {
+    opacity: 1;
 }
 
 .tool-navigation button {
@@ -805,24 +896,187 @@ body {
 .notes-area {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    padding: 1rem;
+    position: relative;
     min-height: 0;
-    background-color: #f5f5f5;
+    background-color: #2a2a2a;
     max-width: 100%;
     box-sizing: border-box;
-    overflow: visible;
+    overflow: hidden;
 }
 
-.notes-header {
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+    position: absolute;
+    top: 0.8rem;
+    right: 2rem;
+    z-index: 1000;
+    background: #404040;
+    border: none;
+    border-radius: 12px;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+    color: #ffffff;
+    font-size: 1.1rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-toggle:hover {
+    background: #505050;
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Notes Sidebar */
+.notes-sidebar {
+    position: absolute;
+    top: 0;
+    left: -300px;
+    width: 300px;
+    height: 100%;
+    background: #1a1a1a;
+    border-right: 1px solid #404040;
+    transition: left 0.3s ease;
+    z-index: 999;
+    overflow-y: auto;
+}
+
+.notes-sidebar.open {
+    left: 0;
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid #404040;
+}
+
+.sidebar-header h4 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.sidebar-close {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-    background-color: #e9e9e9;
-    padding: 0.75rem 1rem;
-    border-radius: 6px;
-    border: 1px solid #ddd;
+    justify-content: center;
+}
+
+.saved-notes-list {
+    padding: 1rem;
+}
+
+.saved-note-item {
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    color: #ffffff;
+    transition: background-color 0.2s ease;
+}
+
+.saved-note-item:hover {
+    background: #3a3a3a;
+}
+
+.saved-note-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.saved-note-preview {
+    font-size: 0.8rem;
+    color: #cccccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Main Notes Content */
+.notes-main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 4.5rem 2rem 2rem 2rem;
+    gap: 1.5rem;
+    transition: margin-left 0.3s ease;
+    margin-left: 0;
+}
+
+/* When sidebar is open, shift content to the right */
+.notes-area:has(.notes-sidebar.open) .notes-main-content {
+    margin-left: 300px;
+}
+
+/* Fallback for browsers that don't support :has() */
+.notes-main-content.sidebar-open {
+    margin-left: 300px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .notes-sidebar {
+        width: 250px;
+        left: -250px;
+    }
+    
+    .notes-area:has(.notes-sidebar.open) .notes-main-content,
+    .notes-main-content.sidebar-open {
+        margin-left: 250px;
+    }
+    
+    .notes-main-content {
+        padding: 3.5rem 1rem 1rem 1rem;
+    }
+    
+    .sidebar-toggle {
+        top: 0.5rem;
+        right: 1rem;
+        padding: 0.3rem 0.7rem;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .notes-sidebar {
+        width: 200px;
+        left: -200px;
+    }
+    
+    .notes-area:has(.notes-sidebar.open) .notes-main-content,
+    .notes-main-content.sidebar-open {
+        margin-left: 200px;
+    }
+    
+    .notes-main-content {
+        padding: 3rem 0.5rem 0.5rem 0.5rem;
+        gap: 1rem;
+    }
+    
+    .sidebar-toggle {
+        top: 0.3rem;
+        right: 0.5rem;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.9rem;
+    }
+    
+    .ai-search-input-container {
+        max-width: 100%;
+        margin: 0;
+    }
 }
 
 .notes-header-left {
@@ -879,12 +1133,12 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    overflow: visible;
-    min-height: 0;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 16px;
+    overflow: hidden;
+    min-height: 400px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     max-width: 100%;
     box-sizing: border-box;
 }
@@ -895,10 +1149,11 @@ body {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    background-color: #e9e9e9;
-    border-bottom: 1px solid #ddd;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
     flex-wrap: wrap;
     overflow-x: auto;
+    border-radius: 12px 12px 0 0;
 }
 
 .format-group {
@@ -979,15 +1234,15 @@ body {
 /* Notes Editor */
 .notes-editor {
     flex: 1;
-    padding: 1rem;
-    background-color: #f5f5f5;
-    color: #333;
-    font-size: 14px;
+    padding: 2rem;
+    background-color: #2a2a2a;
+    color: #ffffff;
+    font-size: 16px;
     line-height: 1.6;
     overflow-y: auto;
     overflow-x: hidden;
     outline: none;
-    min-height: 300px;
+    min-height: 350px;
     max-height: calc(100vh - 300px);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     word-wrap: break-word;
@@ -1135,10 +1390,155 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
-    background-color: #e9e9e9;
-    border-top: 1px solid #ddd;
+    background-color: #f8f9fa;
+    border-top: 1px solid #e9ecef;
     font-size: 0.8rem;
     color: #6c757d;
+    border-radius: 0 0 12px 12px;
+}
+
+/* AI Search Container */
+.ai-search-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.ai-search-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.ai-icon {
+    font-size: 1.2rem;
+}
+
+.ai-title {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.9rem;
+}
+
+.ai-search-input-container {
+    display: flex;
+    align-items: center;
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 24px;
+    padding: 0.75rem 1rem;
+    transition: border-color 0.2s ease;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.ai-search-input-container:focus-within {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+.ai-search-icon {
+    color: #ffffff;
+    font-size: 1.2rem;
+    margin-right: 0.75rem;
+    cursor: pointer;
+}
+
+.ai-search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 1rem;
+    outline: none;
+    padding: 0;
+}
+
+.ai-search-input::placeholder {
+    color: #999999;
+}
+
+.ai-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.75rem;
+}
+
+.ai-action-btn {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.ai-action-btn:hover {
+    background: #505050;
+}
+
+.ai-search-results {
+    background-color: #2a2a2a;
+    border: 1px solid #404040;
+    border-radius: 12px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #ffffff;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Notes Actions */
+.notes-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.action-btn {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background: #505050;
+    border-color: #666666;
+}
+
+.action-btn:active {
+    transform: translateY(1px);
+}
+
+.ai-search-results.loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6c757d;
+}
+
+.ai-search-results.loading::before {
+    content: "⏳";
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .word-count {
@@ -1355,7 +1755,7 @@ body {
     }
     
     .right-panel {
-        flex: 1;
+        flex: 0.5;
         max-height: 50vh;
     }
     
@@ -1444,3 +1844,1062 @@ body {
 }
 
 /* Add any additional tool-specific styles here */
+
+/* Diagram Dialog Styles */
+.diagram-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.diagram-dialog-content {
+    background: #2a2a2a;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1000px;
+    height: 80%;
+    max-height: 800px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.diagram-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #404040;
+    background: #333333;
+}
+
+.diagram-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.diagram-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.generation-content {
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.generation-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.generation-header h4 {
+    color: #ffffff;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+}
+
+.generation-header p {
+    color: #cccccc;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.diagram-options {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.option-group label {
+    color: #ffffff;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-select {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    min-width: 200px;
+    cursor: pointer;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+.generation-actions {
+    margin-top: 1rem;
+}
+
+.diagram-view-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1.5rem;
+}
+
+.diagram-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #404040;
+}
+
+.diagram-info {
+    display: flex;
+    gap: 1rem;
+    color: #ffffff;
+    font-size: 0.9rem;
+}
+
+.diagram-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.control-btn {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+    background: #505050;
+    border-color: #666666;
+}
+
+.diagram-canvas-container {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.diagram-canvas {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: auto;
+    min-height: 400px;
+}
+
+/* Diagram Node Styles */
+.diagram-node {
+    position: absolute;
+    background: #404040;
+    border: 2px solid #555555;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    color: #ffffff;
+    font-size: 0.9rem;
+    cursor: pointer;
+    min-width: 100px;
+    text-align: center;
+    transition: all 0.2s ease;
+    user-select: none;
+    z-index: 10;
+}
+
+.diagram-node:hover {
+    background: #505050;
+    border-color: #666666;
+    transform: scale(1.05);
+}
+
+.diagram-node.selected {
+    background: #007bff;
+    border-color: #0056b3;
+}
+
+.diagram-node.root {
+    background: #28a745;
+    border-color: #1e7e34;
+}
+
+.diagram-node.leaf {
+    background: #ffc107;
+    border-color: #e0a800;
+    color: #212529;
+}
+
+.diagram-connection {
+    position: absolute;
+    border: 2px solid #555555;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.diagram-connection:hover {
+    border-color: #666666;
+}
+
+/* Loading Indicator */
+.loading-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: #ffffff;
+    padding: 2rem;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #404040;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}/* Resources Dialog Styles */
+.resources-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.resources-dialog-content {
+    background: #2a2a2a;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1000px;
+    height: 80%;
+    max-height: 800px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.resources-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #404040;
+    background: #333333;
+}
+
+.resources-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.resources-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.analysis-content {
+    padding: 3rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.analysis-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.analysis-header h4 {
+    color: #ffffff;
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+}
+
+.analysis-header p {
+    color: #cccccc;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.resources-display-content {
+    padding: 1.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.subject-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #404040;
+}
+
+.subject-badge {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    text-transform: capitalize;
+}
+
+.confidence-score {
+    color: #ffffff;
+    font-size: 0.9rem;
+    background: #404040;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+}
+
+.resources-categories {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow-y: auto;
+}
+
+.resource-category {
+    background: #333333;
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid #404040;
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.category-header h5 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.resource-count {
+    color: #cccccc;
+    font-size: 0.9rem;
+    background: #404040;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+}
+
+.resource-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.resource-item {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.2s ease;
+}
+
+.resource-item:hover {
+    background: #505050;
+    border-color: #666666;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.resource-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.resource-title {
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 0;
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.resource-type {
+    background: #007bff;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.resource-description {
+    color: #cccccc;
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+    line-height: 1.4;
+}
+
+.resource-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #555555;
+}
+
+.resource-source {
+    color: #999999;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.resource-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.resource-action-btn {
+    background: transparent;
+    border: 1px solid #555555;
+    color: #cccccc;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.resource-action-btn:hover {
+    background: #555555;
+    color: #ffffff;
+}
+
+.resource-action-btn.helpful {
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+}
+
+.resource-action-btn.saved {
+    background: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.resources-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #404040;
+}
+
+/* Resource Type Colors */
+.resource-type.video { background: #dc3545; }
+.resource-type.article { background: #28a745; }
+.resource-type.practice { background: #ffc107; color: #212529; }
+.resource-type.flashcards { background: #6f42c1; }
+.resource-type.worksheet { background: #fd7e14; }
+
+/* Tool Sidebars */
+.tool-sidebar {
+    position: absolute;
+    top: 0;
+    left: -350px;
+    width: 350px;
+    height: 100%;
+    background: #2a2a2a;
+    border-right: 1px solid #404040;
+    transition: left 0.3s ease;
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Make sidebars appear to extend from the tool navigation */
+.tool-sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #007bff, #0056b3);
+    z-index: 1000;
+}
+
+.tool-sidebar.open {
+    left: 0;
+}
+
+/* When tool sidebar is open, shift the notes area to the right */
+.right-panel:has(.tool-sidebar.open) .notes-area {
+    margin-left: 350px;
+}
+
+/* Fallback for browsers that don't support :has() */
+.notes-area.sidebar-open {
+    margin-left: 350px;
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #404040;
+    background: #333333;
+    flex-shrink: 0;
+}
+
+.sidebar-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.sidebar-close-btn {
+    background: none;
+    border: none;
+    color: #cccccc;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.sidebar-close-btn:hover {
+    color: #ffffff;
+    background-color: #4a4a4a;
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+/* Sidebar Content Styles */
+.sidebar-section {
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-section h4 {
+    color: #ffffff;
+    margin: 0 0 0.75rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.sidebar-section p {
+    color: #cccccc;
+    margin: 0 0 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.sidebar-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sidebar-option-group label {
+    color: #ffffff;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.sidebar-form-select {
+    background: #404040;
+    border: 1px solid #555555;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.sidebar-form-select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+.sidebar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.sidebar-btn {
+    background: #007bff;
+    border: none;
+    border-radius: 6px;
+    color: #ffffff;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.sidebar-btn:hover {
+    background: #0056b3;
+}
+
+.sidebar-btn:disabled {
+    background: #404040;
+    color: #888888;
+    cursor: not-allowed;
+}
+
+.sidebar-btn.secondary {
+    background: #6c757d;
+}
+
+.sidebar-btn.secondary:hover {
+    background: #545b62;
+}
+
+.sidebar-btn.success {
+    background: #28a745;
+}
+
+.sidebar-btn.success:hover {
+    background: #1e7e34;
+}
+
+.sidebar-btn.danger {
+    background: #dc3545;
+}
+
+.sidebar-btn.danger:hover {
+    background: #c82333;
+}
+
+/* Quiz Sidebar Specific */
+.quiz-progress {
+    background: #404040;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.quiz-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #555555;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.quiz-progress-fill {
+    height: 100%;
+    background: #007bff;
+    transition: width 0.3s ease;
+}
+
+.quiz-question {
+    background: #404040;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.quiz-question-text {
+    color: #ffffff;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.quiz-option {
+    background: #555555;
+    border: 1px solid #666666;
+    border-radius: 6px;
+    padding: 0.75rem;
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.quiz-option:hover {
+    background: #666666;
+}
+
+.quiz-option.selected {
+    background: #007bff;
+    border-color: #0056b3;
+}
+
+.quiz-option.correct {
+    background: #28a745;
+    border-color: #1e7e34;
+}
+
+.quiz-option.incorrect {
+    background: #dc3545;
+    border-color: #c82333;
+}
+
+/* Flashcards Sidebar Specific */
+.flashcard-container {
+    background: #404040;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+.flashcard-container:hover {
+    transform: scale(1.02);
+}
+
+.flashcard-container.flipped {
+    transform: rotateY(180deg);
+}
+
+.flashcard-question, .flashcard-answer {
+    color: #ffffff;
+    font-size: 1.1rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.flashcard-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+/* Diagrams Sidebar Specific */
+.diagram-canvas-sidebar {
+    background: #1a1a1a;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    height: 300px;
+    overflow: auto;
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.diagram-node-sidebar {
+    position: absolute;
+    background: #404040;
+    border: 2px solid #555555;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    color: #ffffff;
+    font-size: 0.8rem;
+    cursor: pointer;
+    min-width: 80px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.diagram-node-sidebar:hover {
+    background: #505050;
+    border-color: #666666;
+}
+
+.diagram-node-sidebar.root {
+    background: #28a745;
+    border-color: #1e7e34;
+}
+
+.diagram-node-sidebar.leaf {
+    background: #ffc107;
+    border-color: #e0a800;
+    color: #212529;
+}
+
+/* Loading States */
+.sidebar-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: #ffffff;
+}
+
+.sidebar-spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid #404040;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+/* Results and Stats */
+.sidebar-results {
+    background: #404040;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.sidebar-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.sidebar-stat {
+    text-align: center;
+}
+
+.sidebar-stat-number {
+    color: #ffffff;
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: block;
+}
+
+.sidebar-stat-label {
+    color: #cccccc;
+    font-size: 0.8rem;
+}
+
+/* Resources Sidebar Specific Styles */
+.subject-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #333;
+    border-radius: 8px;
+}
+
+.subject-badge {
+    background: #007bff;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.confidence-score {
+    color: #cccccc;
+    font-size: 0.8rem;
+}
+
+.resources-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.resource-category {
+    background: #333;
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.category-header h5 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 0.9rem;
+}
+
+.resource-count {
+    color: #cccccc;
+    font-size: 0.8rem;
+}
+
+.resource-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.resource-item {
+    background: #2a2a2a;
+    border-radius: 6px;
+    padding: 0.75rem;
+    border: 1px solid #404040;
+}
+
+.resource-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.resource-type {
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.resource-title {
+    margin: 0;
+    color: #ffffff;
+    font-size: 0.85rem;
+}
+
+.resource-description {
+    color: #cccccc;
+    font-size: 0.8rem;
+    margin: 0 0 0.5rem 0;
+    line-height: 1.3;
+}
+
+.resource-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.resource-source {
+    color: #999;
+    font-size: 0.75rem;
+}
+
+.resource-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.resource-action-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.resource-action-btn:hover {
+    background: #0056b3;
+}
+
+/* Responsive Design for Sidebars */
+@media (max-width: 768px) {
+    .tool-sidebar {
+        width: 300px;
+        left: -300px;
+    }
+    
+    .right-panel:has(.tool-sidebar.open) .notes-area,
+    .notes-area.sidebar-open {
+        margin-left: 300px;
+    }
+    
+    .sidebar-content {
+        padding: 0.75rem;
+    }
+    
+    .sidebar-header {
+        padding: 0.75rem 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .tool-sidebar {
+        width: 250px;
+        left: -250px;
+    }
+    
+    .right-panel:has(.tool-sidebar.open) .notes-area,
+    .notes-area.sidebar-open {
+        margin-left: 250px;
+    }
+}

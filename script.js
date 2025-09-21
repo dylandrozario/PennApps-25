@@ -11,6 +11,12 @@ class PDFUploader {
         this.scale = 1.0;
         this.pdfjsReady = false;
         
+        // API rate limiting - Very aggressive to handle strict quotas
+        this.lastAPICall = 0;
+        this.minAPIDelay = 3000; // Minimum 3 seconds between API calls
+        this.apiCallCount = 0;
+        this.maxCallsPerMinute = 10; // Conservative limit
+        
         this.initializeElements();
         this.bindEvents();
         this.initializePDFJS();
@@ -19,6 +25,8 @@ class PDFUploader {
         this.initializePrintTool();
         this.initializeFormTool();
         this.initializeFlashcardTool();
+        this.initializeDiagramTool();
+        this.initializeResourcesTool();
         this.initializeNotesEditor();
     }
     
@@ -109,6 +117,24 @@ class PDFUploader {
         if (this.insertNewDocBtn) {
             this.insertNewDocBtn.addEventListener('click', () => {
                 this.closePDFViewer();
+            });
+        }
+        
+        // API Test button event
+        const apiTestBtn = document.getElementById('apiTestBtn');
+        if (apiTestBtn) {
+            apiTestBtn.addEventListener('click', () => {
+                this.testAPIConnection().catch(error => {
+                    console.error('API test failed:', error);
+                });
+            });
+        }
+        
+        // API Status click to reset
+        const apiStatus = document.getElementById('apiStatus');
+        if (apiStatus) {
+            apiStatus.addEventListener('click', () => {
+                this.resetAPIRateLimit();
             });
         }
         
@@ -539,16 +565,8 @@ class PDFUploader {
     }
     
     initializeNoteTakingButton() {
-        // Create a simple button instead of using the modal component
-        const button = document.createElement('button');
-        button.className = 'note-taking-btn';
-        button.innerHTML = '📝 Summarize PDF';
-        button.addEventListener('click', () => this.toggleSummaryPanel());
-        
-        // Add the button to the PDF controls
-        this.summarizeButtonContainer.appendChild(button);
-        
-        // Initialize the inline interface
+        // Note-taking functionality is now handled in the notes section
+        // Initialize the inline interface for the summary panel
         this.initializeInlineInterface();
     }
     
@@ -683,37 +701,39 @@ Simplified notes:`;
                 throw new Error('Please configure your Gemini API key in config.js');
             }
             
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: prompt
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.3,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 1024,
-                    }
-                })
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.3,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 1024,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
             });
-
-            if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                return data.candidates[0].content.parts[0].text.trim();
-            } else {
-                throw new Error('Invalid response format from Gemini API');
-            }
         } catch (error) {
             console.error('Gemini API error:', error);
             throw error;
@@ -838,7 +858,7 @@ Simplified notes:`;
         const quizButton = document.createElement('button');
         quizButton.className = 'quiz-btn';
         quizButton.innerHTML = '🧠 Quiz Me';
-        quizButton.addEventListener('click', () => this.toggleQuizPanel());
+        quizButton.addEventListener('click', () => this.toggleQuizSidebar());
         
         // Add the button to the PDF controls
         const quizContainer = document.getElementById('quiz-button-container');
@@ -868,42 +888,108 @@ Simplified notes:`;
     }
     
     bindQuizEvents() {
-        const closeQuizBtn = document.getElementById('close-quiz-btn');
+        const closeQuizBtn = document.getElementById('close-quiz-sidebar');
+        
+        if (closeQuizBtn) {
+            closeQuizBtn.addEventListener('click', () => this.closeQuizSidebar());
+        }
+    }
+    
+    toggleQuizSidebar() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        const quizSidebar = document.getElementById('quizSidebar');
+        if (!quizSidebar) return;
+        
+        if (this.quizState.isOpen) {
+            this.closeQuizSidebar();
+        } else {
+            this.openQuizSidebar();
+        }
+    }
+    
+    openQuizSidebar() {
+        // Close other sidebars first
+        this.closeFlashcardsSidebar();
+        this.closeDiagramsSidebar();
+        this.closeResourcesSidebar();
+        
+        const quizSidebar = document.getElementById('quizSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (quizSidebar) {
+            quizSidebar.classList.add('open');
+            if (notesArea) notesArea.classList.add('sidebar-open');
+            this.quizState.isOpen = true;
+            this.showQuizGenerationSection();
+        }
+    }
+    
+    closeQuizSidebar() {
+        const quizSidebar = document.getElementById('quizSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (quizSidebar) {
+            quizSidebar.classList.remove('open');
+            if (notesArea) notesArea.classList.remove('sidebar-open');
+            this.quizState.isOpen = false;
+        }
+    }
+    
+    showQuizGenerationSection() {
+        const sidebarContent = document.getElementById('quizSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>🎯 Generate Quiz</h4>
+                <p>AI will analyze your PDF and create quiz questions</p>
+            </div>
+            
+            <div class="sidebar-options">
+                <div class="sidebar-option-group">
+                    <label for="quiz-difficulty">Difficulty:</label>
+                    <select id="quiz-difficulty" class="sidebar-form-select">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                
+                <div class="sidebar-option-group">
+                    <label for="quiz-count">Questions:</label>
+                    <select id="quiz-count" class="sidebar-form-select">
+                        <option value="5">5 Questions</option>
+                        <option value="10" selected>10 Questions</option>
+                        <option value="15">15 Questions</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="generate-quiz-btn" class="sidebar-btn">
+                    🎯 Generate Quiz
+                </button>
+            </div>
+            
+            <div id="quizLoading" class="sidebar-loading" style="display: none;">
+                <div class="sidebar-spinner"></div>
+                <p>Generating quiz questions...</p>
+            </div>
+        `;
+        
+        // Bind new events
+        this.bindQuizSidebarEvents();
+    }
+    
+    bindQuizSidebarEvents() {
         const generateQuizBtn = document.getElementById('generate-quiz-btn');
-        const submitAnswerBtn = document.getElementById('submit-answer-btn');
-        const nextQuestionBtn = document.getElementById('next-question-btn');
-        const retakeQuizBtn = document.getElementById('retake-quiz-btn');
-        const newQuizBtn = document.getElementById('new-quiz-btn');
-        const reviewAnswersBtn = document.getElementById('review-answers-btn');
         const difficultySelect = document.getElementById('quiz-difficulty');
         const questionCountSelect = document.getElementById('quiz-count');
         
-        if (closeQuizBtn) {
-            closeQuizBtn.addEventListener('click', () => this.closeQuizPanel());
-        }
-        
         if (generateQuizBtn) {
             generateQuizBtn.addEventListener('click', () => this.generateQuiz());
-        }
-        
-        if (submitAnswerBtn) {
-            submitAnswerBtn.addEventListener('click', () => this.submitAnswer());
-        }
-        
-        if (nextQuestionBtn) {
-            nextQuestionBtn.addEventListener('click', () => this.nextQuestion());
-        }
-        
-        if (retakeQuizBtn) {
-            retakeQuizBtn.addEventListener('click', () => this.retakeQuiz());
-        }
-        
-        if (newQuizBtn) {
-            newQuizBtn.addEventListener('click', () => this.newQuiz());
-        }
-        
-        if (reviewAnswersBtn) {
-            reviewAnswersBtn.addEventListener('click', () => this.reviewAnswers());
         }
         
         if (difficultySelect) {
@@ -919,62 +1005,174 @@ Simplified notes:`;
         }
     }
     
-    toggleQuizPanel() {
-        const quizPanel = document.getElementById('quizPanel');
-        if (!quizPanel) return;
-        
-        if (this.quizState.isOpen) {
-            this.closeQuizPanel();
-        } else {
-            this.openQuizPanel();
-        }
-    }
-    
-    openQuizPanel() {
-        const quizPanel = document.getElementById('quizPanel');
-        if (quizPanel) {
-            quizPanel.style.display = 'flex';
-            this.quizState.isOpen = true;
-            this.showQuizGenerationSection();
-        }
-    }
-    
-    closeQuizPanel() {
-        const quizPanel = document.getElementById('quizPanel');
-        if (quizPanel) {
-            quizPanel.style.display = 'none';
-            this.quizState.isOpen = false;
-        }
-    }
-    
-    showQuizGenerationSection() {
-        const generationSection = document.getElementById('quizGenerationSection');
-        const questionsSection = document.getElementById('quizQuestionsSection');
-        const resultsSection = document.getElementById('quizResultsSection');
-        
-        if (generationSection) generationSection.style.display = 'block';
-        if (questionsSection) questionsSection.style.display = 'none';
-        if (resultsSection) resultsSection.style.display = 'none';
-    }
-    
     showQuizQuestionsSection() {
-        const generationSection = document.getElementById('quizGenerationSection');
-        const questionsSection = document.getElementById('quizQuestionsSection');
-        const resultsSection = document.getElementById('quizResultsSection');
+        const sidebarContent = document.getElementById('quizSidebarContent');
+        if (!sidebarContent) return;
         
-        if (generationSection) generationSection.style.display = 'none';
-        if (questionsSection) questionsSection.style.display = 'block';
-        if (resultsSection) resultsSection.style.display = 'none';
+        const question = this.quizState.questions[this.quizState.currentQuestion];
+        if (!question) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="quiz-progress">
+                <div class="quiz-progress-bar">
+                    <div class="quiz-progress-fill" style="width: ${((this.quizState.currentQuestion + 1) / this.quizState.questions.length) * 100}%"></div>
+                </div>
+                <div style="color: #cccccc; font-size: 0.9rem; text-align: center;">
+                    Question ${this.quizState.currentQuestion + 1} of ${this.quizState.questions.length}
+                </div>
+            </div>
+            
+            <div class="quiz-question">
+                <div class="quiz-question-text">${question.question}</div>
+                <div class="quiz-options" id="quizOptions">
+                    ${this.generateQuizOptionsHTML(question)}
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="submit-answer-btn" class="sidebar-btn" disabled>
+                    Submit Answer
+                </button>
+                <button id="next-question-btn" class="sidebar-btn secondary" style="display: none;">
+                    Next Question
+                </button>
+            </div>
+        `;
+        
+        // Bind quiz question events
+        this.bindQuizQuestionEvents();
+    }
+    
+    generateQuizOptionsHTML(question) {
+        if (question.type === 'multiple_choice') {
+            return question.options.map((option, index) => `
+                <div class="quiz-option" data-option="${option}">
+                    ${option}
+                </div>
+            `).join('');
+        } else if (question.type === 'true_false') {
+            return `
+                <div class="quiz-option" data-option="True">True</div>
+                <div class="quiz-option" data-option="False">False</div>
+            `;
+        } else if (question.type === 'fill_blank') {
+            return `
+                <input type="text" id="fill-blank-input" class="sidebar-form-select" placeholder="Type your answer here..." style="margin-top: 0.5rem;">
+            `;
+        }
+        return '';
+    }
+    
+    bindQuizQuestionEvents() {
+        const quizOptions = document.getElementById('quizOptions');
+        const submitBtn = document.getElementById('submit-answer-btn');
+        const nextBtn = document.getElementById('next-question-btn');
+        const fillBlankInput = document.getElementById('fill-blank-input');
+        
+        if (quizOptions) {
+            quizOptions.addEventListener('click', (e) => {
+                if (e.target.classList.contains('quiz-option')) {
+                    // Remove previous selection
+                    quizOptions.querySelectorAll('.quiz-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    
+                    // Select current option
+                    e.target.classList.add('selected');
+                    this.quizState.selectedAnswer = e.target.dataset.option;
+                    
+                    // Enable submit button
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                    }
+                }
+            });
+        }
+        
+        if (fillBlankInput) {
+            fillBlankInput.addEventListener('input', () => {
+                this.quizState.selectedAnswer = fillBlankInput.value.trim();
+                if (submitBtn) {
+                    submitBtn.disabled = !this.quizState.selectedAnswer;
+                }
+            });
+        }
+        
+        if (submitBtn) {
+            submitBtn.addEventListener('click', () => this.submitAnswer());
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => this.nextQuestion());
+        }
     }
     
     showQuizResultsSection() {
-        const generationSection = document.getElementById('quizGenerationSection');
-        const questionsSection = document.getElementById('quizQuestionsSection');
-        const resultsSection = document.getElementById('quizResultsSection');
+        const sidebarContent = document.getElementById('quizSidebarContent');
+        if (!sidebarContent) return;
         
-        if (generationSection) generationSection.style.display = 'none';
-        if (questionsSection) questionsSection.style.display = 'none';
-        if (resultsSection) resultsSection.style.display = 'block';
+        const percentage = Math.round((this.quizState.score / this.quizState.questions.length) * 100);
+        const timeTaken = Math.round((Date.now() - this.quizState.startTime) / 1000);
+        const minutes = Math.floor(timeTaken / 60);
+        const seconds = timeTaken % 60;
+        
+        let scoreMessage = '';
+        if (percentage >= 90) {
+            scoreMessage = 'Excellent! Outstanding performance!';
+        } else if (percentage >= 80) {
+            scoreMessage = 'Great job! Well done!';
+        } else if (percentage >= 70) {
+            scoreMessage = 'Good work! Keep it up!';
+        } else if (percentage >= 60) {
+            scoreMessage = 'Not bad! Room for improvement.';
+        } else {
+            scoreMessage = 'Keep studying! You can do better.';
+        }
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>🎉 Quiz Complete!</h4>
+                <p>${scoreMessage}</p>
+            </div>
+            
+            <div class="sidebar-results">
+                <div class="sidebar-stats">
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${percentage}%</span>
+                        <span class="sidebar-stat-label">Score</span>
+                    </div>
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${this.quizState.score}</span>
+                        <span class="sidebar-stat-label">Correct</span>
+                    </div>
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${minutes}:${seconds.toString().padStart(2, '0')}</span>
+                        <span class="sidebar-stat-label">Time</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="retake-quiz-btn" class="sidebar-btn secondary">
+                    🔄 Retake Quiz
+                </button>
+                <button id="new-quiz-btn" class="sidebar-btn">
+                    🆕 New Quiz
+                </button>
+            </div>
+        `;
+        
+        // Bind results events
+        const retakeBtn = document.getElementById('retake-quiz-btn');
+        const newQuizBtn = document.getElementById('new-quiz-btn');
+        
+        if (retakeBtn) {
+            retakeBtn.addEventListener('click', () => this.retakeQuiz());
+        }
+        
+        if (newQuizBtn) {
+            newQuizBtn.addEventListener('click', () => this.newQuiz());
+        }
     }
     
     async generateQuiz() {
@@ -1025,10 +1223,7 @@ Simplified notes:`;
     }
     
     async generateQuizQuestions(pdfText) {
-        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
-        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
-            throw new Error('Please configure your Gemini API key in config.js');
-        }
+        const apiKey = this.validateAPIKey();
         
         const difficulty = this.quizState.difficulty;
         const questionCount = this.quizState.questionCount;
@@ -1065,52 +1260,54 @@ ${pdfText}
 Generate ${questionCount} questions:`;
 
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: prompt
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 2048,
-                    }
-                })
-            });
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 2048,
+                        }
+                    })
+                });
 
-            if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const responseText = data.candidates[0].content.parts[0].text.trim();
-                
-                // Try to parse JSON from the response
-                try {
-                    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-                    if (jsonMatch) {
-                        const questions = JSON.parse(jsonMatch[0]);
-                        return questions;
-                    } else {
-                        throw new Error('No valid JSON found in response');
-                    }
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    console.log('Raw response:', responseText);
-                    throw new Error('Failed to parse quiz questions from AI response');
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
                 }
-            } else {
-                throw new Error('Invalid response format from Gemini API');
-            }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const responseText = data.candidates[0].content.parts[0].text.trim();
+                    
+                    // Try to parse JSON from the response
+                    try {
+                        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            const questions = JSON.parse(jsonMatch[0]);
+                            return questions;
+                        } else {
+                            throw new Error('No valid JSON found in response');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.log('Raw response:', responseText);
+                        throw new Error('Failed to parse quiz questions from AI response');
+                    }
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            });
         } catch (error) {
             console.error('Gemini API error:', error);
             throw error;
@@ -1255,7 +1452,7 @@ Generate ${questionCount} questions:`;
         let userAnswer = '';
         
         if (question.type === 'fill_blank') {
-            const input = document.querySelector('.fill-blank-input');
+            const input = document.getElementById('fill-blank-input');
             userAnswer = input ? input.value.trim() : '';
         } else {
             userAnswer = this.quizState.selectedAnswer || '';
@@ -1282,8 +1479,8 @@ Generate ${questionCount} questions:`;
             this.quizState.score++;
         }
         
-        // Show result
-        this.showAnswerResult(question, userAnswer, isCorrect);
+        // Show result in sidebar
+        this.showAnswerResultInSidebar(question, userAnswer, isCorrect);
         
         // Update buttons
         const submitBtn = document.getElementById('submit-answer-btn');
@@ -1294,8 +1491,48 @@ Generate ${questionCount} questions:`;
         }
         
         if (nextBtn) {
-            nextBtn.style.display = 'inline-block';
+            nextBtn.style.display = 'block';
         }
+    }
+    
+    showAnswerResultInSidebar(question, userAnswer, isCorrect) {
+        const quizOptions = document.getElementById('quizOptions');
+        if (!quizOptions) return;
+        
+        // Update option colors
+        quizOptions.querySelectorAll('.quiz-option').forEach(option => {
+            const optionText = option.textContent.trim();
+            
+            if (optionText === question.correct_answer) {
+                option.classList.add('correct');
+            } else if (optionText === userAnswer && !isCorrect) {
+                option.classList.add('incorrect');
+            }
+        });
+        
+        // Add explanation below options
+        const existingExplanation = document.querySelector('.quiz-explanation');
+        if (existingExplanation) {
+            existingExplanation.remove();
+        }
+        
+        const explanation = document.createElement('div');
+        explanation.className = 'quiz-explanation';
+        explanation.style.cssText = `
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: ${isCorrect ? '#28a745' : '#dc3545'};
+            border-radius: 6px;
+            color: white;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        `;
+        explanation.innerHTML = `
+            <strong>${isCorrect ? '✅ Correct!' : '❌ Incorrect'}</strong><br>
+            <strong>Explanation:</strong> ${question.explanation}
+        `;
+        
+        quizOptions.appendChild(explanation);
     }
     
     checkAnswer(question, userAnswer) {
@@ -1557,14 +1794,15 @@ Generate ${questionCount} questions:`;
     initializePrintTool() {
         // Create print button
         const printButton = document.createElement('button');
-        printButton.className = 'print-btn';
-        printButton.innerHTML = '🖨️ Print';
+        printButton.className = 'btn btn-secondary print-btn tool-control-btn';
+        printButton.innerHTML = '🖨️';
+        printButton.title = 'Print PDF';
         printButton.addEventListener('click', () => this.openPrintDialog());
         
-        // Add the button to the PDF controls
-        const printContainer = document.getElementById('print-button-container');
-        if (printContainer) {
-            printContainer.appendChild(printButton);
+        // Add the button to the tool controls container
+        const toolControlsContainer = document.getElementById('tool-controls-container');
+        if (toolControlsContainer) {
+            toolControlsContainer.appendChild(printButton);
         }
         
         // Initialize print functionality
@@ -1711,14 +1949,15 @@ Generate ${questionCount} questions:`;
     initializeFormTool() {
         // Create form button
         const formButton = document.createElement('button');
-        formButton.className = 'form-btn';
-        formButton.innerHTML = '📝 Fill & Sign';
+        formButton.className = 'btn btn-secondary form-btn tool-control-btn';
+        formButton.innerHTML = '📝';
+        formButton.title = 'Fill & Sign';
         formButton.addEventListener('click', () => this.openFormDialog());
         
-        // Add the button to the PDF controls
-        const formContainer = document.getElementById('form-button-container');
-        if (formContainer) {
-            formContainer.appendChild(formButton);
+        // Add the button to the tool controls container
+        const toolControlsContainer = document.getElementById('tool-controls-container');
+        if (toolControlsContainer) {
+            toolControlsContainer.appendChild(formButton);
         }
         
         // Initialize form functionality
@@ -2150,7 +2389,7 @@ Generate ${questionCount} questions:`;
         const flashcardButton = document.createElement('button');
         flashcardButton.className = 'flashcard-btn';
         flashcardButton.innerHTML = '🎴 Flashcards';
-        flashcardButton.addEventListener('click', () => this.openFlashcardDialog());
+        flashcardButton.addEventListener('click', () => this.toggleFlashcardsSidebar());
         
         // Add the button to the PDF controls
         const flashcardContainer = document.getElementById('flashcard-button-container');
@@ -2183,52 +2422,108 @@ Generate ${questionCount} questions:`;
     }
     
     bindFlashcardEvents() {
-        const closeFlashcardBtn = document.getElementById('close-flashcard-btn');
+        const closeFlashcardsBtn = document.getElementById('close-flashcards-sidebar');
+        
+        if (closeFlashcardsBtn) {
+            closeFlashcardsBtn.addEventListener('click', () => this.closeFlashcardsSidebar());
+        }
+    }
+    
+    toggleFlashcardsSidebar() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        const flashcardsSidebar = document.getElementById('flashcardsSidebar');
+        if (!flashcardsSidebar) return;
+        
+        if (this.flashcardState.isOpen) {
+            this.closeFlashcardsSidebar();
+        } else {
+            this.openFlashcardsSidebar();
+        }
+    }
+    
+    openFlashcardsSidebar() {
+        // Close other sidebars first
+        this.closeQuizSidebar();
+        this.closeDiagramsSidebar();
+        this.closeResourcesSidebar();
+        
+        const flashcardsSidebar = document.getElementById('flashcardsSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (flashcardsSidebar) {
+            flashcardsSidebar.classList.add('open');
+            if (notesArea) notesArea.classList.add('sidebar-open');
+            this.flashcardState.isOpen = true;
+            this.showFlashcardsGenerationSection();
+        }
+    }
+    
+    closeFlashcardsSidebar() {
+        const flashcardsSidebar = document.getElementById('flashcardsSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (flashcardsSidebar) {
+            flashcardsSidebar.classList.remove('open');
+            if (notesArea) notesArea.classList.remove('sidebar-open');
+            this.flashcardState.isOpen = false;
+        }
+    }
+    
+    showFlashcardsGenerationSection() {
+        const sidebarContent = document.getElementById('flashcardsSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>🎴 Generate Flashcards</h4>
+                <p>AI will create interactive flashcards from your PDF content</p>
+            </div>
+            
+            <div class="sidebar-options">
+                <div class="sidebar-option-group">
+                    <label for="flashcardCount">Number of Cards:</label>
+                    <select id="flashcardCount" class="sidebar-form-select">
+                        <option value="10">10 Cards</option>
+                        <option value="15" selected>15 Cards</option>
+                        <option value="20">20 Cards</option>
+                    </select>
+                </div>
+                
+                <div class="sidebar-option-group">
+                    <label for="flashcardDifficulty">Difficulty:</label>
+                    <select id="flashcardDifficulty" class="sidebar-form-select">
+                        <option value="basic">Basic</option>
+                        <option value="intermediate" selected>Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="generate-flashcards-btn" class="sidebar-btn">
+                    🎯 Generate Flashcards
+                </button>
+            </div>
+            
+            <div id="flashcardLoading" class="sidebar-loading" style="display: none;">
+                <div class="sidebar-spinner"></div>
+                <p>Generating flashcards...</p>
+            </div>
+        `;
+        
+        // Bind flashcards sidebar events
+        this.bindFlashcardsSidebarEvents();
+    }
+    
+    bindFlashcardsSidebarEvents() {
         const generateFlashcardsBtn = document.getElementById('generate-flashcards-btn');
-        const markCorrectBtn = document.getElementById('markCorrect-btn');
-        const markIncorrectBtn = document.getElementById('markIncorrect-btn');
-        const replayIncorrectBtn = document.getElementById('replay-incorrect-btn');
-        const newFlashcardsBtn = document.getElementById('new-flashcards-btn');
-        const closeFlashcardsBtn = document.getElementById('close-flashcards-btn');
-        const reviewCorrectBtn = document.getElementById('reviewCorrect-btn');
-        const reviewIncorrectBtn = document.getElementById('reviewIncorrect-btn');
         const flashcardCountSelect = document.getElementById('flashcardCount');
         const flashcardDifficultySelect = document.getElementById('flashcardDifficulty');
         
-        if (closeFlashcardBtn) {
-            closeFlashcardBtn.addEventListener('click', () => this.closeFlashcardDialog());
-        }
-        
         if (generateFlashcardsBtn) {
             generateFlashcardsBtn.addEventListener('click', () => this.generateFlashcards());
-        }
-        
-        if (markCorrectBtn) {
-            markCorrectBtn.addEventListener('click', () => this.markCardCorrect());
-        }
-        
-        if (markIncorrectBtn) {
-            markIncorrectBtn.addEventListener('click', () => this.markCardIncorrect());
-        }
-        
-        if (replayIncorrectBtn) {
-            replayIncorrectBtn.addEventListener('click', () => this.startReviewMode());
-        }
-        
-        if (newFlashcardsBtn) {
-            newFlashcardsBtn.addEventListener('click', () => this.newFlashcardSet());
-        }
-        
-        if (closeFlashcardsBtn) {
-            closeFlashcardsBtn.addEventListener('click', () => this.closeFlashcardDialog());
-        }
-        
-        if (reviewCorrectBtn) {
-            reviewCorrectBtn.addEventListener('click', () => this.markReviewCorrect());
-        }
-        
-        if (reviewIncorrectBtn) {
-            reviewIncorrectBtn.addEventListener('click', () => this.markReviewIncorrect());
         }
         
         if (flashcardCountSelect) {
@@ -2242,19 +2537,6 @@ Generate ${questionCount} questions:`;
                 this.flashcardState.difficulty = e.target.value;
             });
         }
-        
-        // Close dialog on background click
-        const flashcardDialog = document.getElementById('flashcardDialog');
-        if (flashcardDialog) {
-            flashcardDialog.addEventListener('click', (e) => {
-                if (e.target === flashcardDialog) {
-                    this.closeFlashcardDialog();
-                }
-            });
-        }
-        
-        // Card flip events
-        this.bindCardFlipEvents();
     }
     
     bindCardFlipEvents() {
@@ -2306,27 +2588,104 @@ Generate ${questionCount} questions:`;
     }
     
     showStudySection() {
-        const generationSection = document.getElementById('flashcardGenerationSection');
-        const studySection = document.getElementById('flashcardStudySection');
-        const resultsSection = document.getElementById('flashcardResultsSection');
-        const reviewSection = document.getElementById('flashcardReviewSection');
+        const sidebarContent = document.getElementById('flashcardsSidebarContent');
+        if (!sidebarContent) return;
         
-        if (generationSection) generationSection.style.display = 'none';
-        if (studySection) studySection.style.display = 'block';
-        if (resultsSection) resultsSection.style.display = 'none';
-        if (reviewSection) reviewSection.style.display = 'none';
+        const card = this.flashcardState.flashcards[this.flashcardState.currentCardIndex];
+        if (!card) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="quiz-progress">
+                <div class="quiz-progress-bar">
+                    <div class="quiz-progress-fill" style="width: ${((this.flashcardState.currentCardIndex + 1) / this.flashcardState.flashcards.length) * 100}%"></div>
+                </div>
+                <div style="color: #cccccc; font-size: 0.9rem; text-align: center;">
+                    Card ${this.flashcardState.currentCardIndex + 1} of ${this.flashcardState.flashcards.length}
+                </div>
+            </div>
+            
+            <div class="flashcard-container" id="currentCard">
+                <div class="flashcard-question">${card.question}</div>
+            </div>
+            
+            <div class="flashcard-actions">
+                <button class="sidebar-btn success" onclick="pdfUploader.markCardCorrect()">
+                    ✅ Correct
+                </button>
+                <button class="sidebar-btn danger" onclick="pdfUploader.markCardIncorrect()">
+                    ❌ Incorrect
+                </button>
+            </div>
+            
+            <div class="sidebar-stats" style="margin-top: 1rem;">
+                <div class="sidebar-stat">
+                    <span class="sidebar-stat-number">${this.flashcardState.correctCount}</span>
+                    <span class="sidebar-stat-label">Correct</span>
+                </div>
+                <div class="sidebar-stat">
+                    <span class="sidebar-stat-number">${this.flashcardState.incorrectCount}</span>
+                    <span class="sidebar-stat-label">Incorrect</span>
+                </div>
+            </div>
+        `;
+        
+        // Bind card flip event
+        const currentCard = document.getElementById('currentCard');
+        if (currentCard) {
+            currentCard.addEventListener('click', () => this.flipCard());
+        }
     }
     
     showResultsSection() {
-        const generationSection = document.getElementById('flashcardGenerationSection');
-        const studySection = document.getElementById('flashcardStudySection');
-        const resultsSection = document.getElementById('flashcardResultsSection');
-        const reviewSection = document.getElementById('flashcardReviewSection');
+        const sidebarContent = document.getElementById('flashcardsSidebarContent');
+        if (!sidebarContent) return;
         
-        if (generationSection) generationSection.style.display = 'none';
-        if (studySection) studySection.style.display = 'none';
-        if (resultsSection) resultsSection.style.display = 'block';
-        if (reviewSection) reviewSection.style.display = 'none';
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>🎉 Study Complete!</h4>
+                <p>Great job studying with flashcards!</p>
+            </div>
+            
+            <div class="sidebar-results">
+                <div class="sidebar-stats">
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${this.flashcardState.correctCount}</span>
+                        <span class="sidebar-stat-label">Correct</span>
+                    </div>
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${this.flashcardState.incorrectCount}</span>
+                        <span class="sidebar-stat-label">Incorrect</span>
+                    </div>
+                    <div class="sidebar-stat">
+                        <span class="sidebar-stat-number">${this.flashcardState.flashcards.length}</span>
+                        <span class="sidebar-stat-label">Total</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                ${this.flashcardState.incorrectCards.length > 0 ? `
+                    <button id="replay-incorrect-btn" class="sidebar-btn secondary">
+                        🔄 Review Incorrect (${this.flashcardState.incorrectCards.length})
+                    </button>
+                ` : ''}
+                <button id="new-flashcards-btn" class="sidebar-btn">
+                    🆕 New Set
+                </button>
+            </div>
+        `;
+        
+        // Bind results events
+        const replayBtn = document.getElementById('replay-incorrect-btn');
+        const newSetBtn = document.getElementById('new-flashcards-btn');
+        
+        if (replayBtn) {
+            replayBtn.addEventListener('click', () => this.startReviewMode());
+        }
+        
+        if (newSetBtn) {
+            newSetBtn.addEventListener('click', () => this.newFlashcardSet());
+        }
     }
     
     showReviewSection() {
@@ -2427,52 +2786,54 @@ ${pdfText}
 Generate ${cardCount} flashcards:`;
 
         try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: prompt
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.7,
-                        topK: 40,
-                        topP: 0.95,
-                        maxOutputTokens: 2048,
-                    }
-                })
-            });
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 2048,
+                        }
+                    })
+                });
 
-            if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const responseText = data.candidates[0].content.parts[0].text.trim();
-                
-                // Try to parse JSON from the response
-                try {
-                    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-                    if (jsonMatch) {
-                        const flashcards = JSON.parse(jsonMatch[0]);
-                        return flashcards;
-                    } else {
-                        throw new Error('No valid JSON found in response');
-                    }
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    console.log('Raw response:', responseText);
-                    throw new Error('Failed to parse flashcards from AI response');
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
                 }
-            } else {
-                throw new Error('Invalid response format from Gemini API');
-            }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const responseText = data.candidates[0].content.parts[0].text.trim();
+                    
+                    // Try to parse JSON from the response
+                    try {
+                        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            const flashcards = JSON.parse(jsonMatch[0]);
+                            return flashcards;
+                        } else {
+                            throw new Error('No valid JSON found in response');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.log('Raw response:', responseText);
+                        throw new Error('Failed to parse flashcards from AI response');
+                    }
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            });
         } catch (error) {
             console.error('Gemini API error:', error);
             throw error;
@@ -2539,8 +2900,18 @@ Generate ${cardCount} flashcards:`;
     flipCard() {
         const currentCard = document.getElementById('currentCard');
         if (currentCard) {
-            currentCard.classList.toggle('flipped');
-            this.flashcardState.isFlipped = !this.flashcardState.isFlipped;
+            const card = this.flashcardState.flashcards[this.flashcardState.currentCardIndex];
+            if (!card) return;
+            
+            if (!this.flashcardState.isFlipped) {
+                // Show answer
+                currentCard.innerHTML = `<div class="flashcard-answer">${card.answer}</div>`;
+                this.flashcardState.isFlipped = true;
+            } else {
+                // Show question
+                currentCard.innerHTML = `<div class="flashcard-question">${card.question}</div>`;
+                this.flashcardState.isFlipped = false;
+            }
         }
     }
     
@@ -2702,32 +3073,19 @@ Generate ${cardCount} flashcards:`;
         this.bindNotesEvents();
         this.loadNotesFromStorage();
         this.updateWordCount();
-        
-        // Initialize button states after a short delay
-        setTimeout(() => {
-            this.updateFormatButtons();
-        }, 100);
+        this.updateSavedNotesList();
     }
     
     bindNotesEvents() {
         const notesEditor = document.getElementById('notesEditor');
         const clearBtn = document.getElementById('clearNotesBtn');
         const exportBtn = document.getElementById('exportNotesBtn');
-        const boldBtn = document.getElementById('boldBtn');
-        const italicBtn = document.getElementById('italicBtn');
-        const underlineBtn = document.getElementById('underlineBtn');
-        const strikethroughBtn = document.getElementById('strikethroughBtn');
-        const bulletListBtn = document.getElementById('bulletListBtn');
-        const numberListBtn = document.getElementById('numberListBtn');
-        const indentBtn = document.getElementById('indentBtn');
-        const outdentBtn = document.getElementById('outdentBtn');
-        const alignLeftBtn = document.getElementById('alignLeftBtn');
-        const alignCenterBtn = document.getElementById('alignCenterBtn');
-        const alignRightBtn = document.getElementById('alignRightBtn');
-        const fontSize = document.getElementById('fontSize');
-        const fontFamily = document.getElementById('fontFamily');
-        const textColor = document.getElementById('textColor');
-        const highlightColor = document.getElementById('highlightColor');
+        const summarizeBtn = document.getElementById('summarizeBtn');
+        const saveNotesBtn = document.getElementById('saveNotesBtn');
+        const aiSearchInput = document.getElementById('aiSearchInput');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarClose = document.getElementById('sidebarClose');
+        const notesSidebar = document.getElementById('notesSidebar');
         
         if (notesEditor) {
             notesEditor.addEventListener('input', () => {
@@ -2766,87 +3124,28 @@ Generate ${cardCount} flashcards:`;
             exportBtn.addEventListener('click', () => this.exportNotes());
         }
         
-        // Format buttons
-        if (boldBtn) {
-            boldBtn.addEventListener('click', () => this.toggleFormat('bold'));
+        if (summarizeBtn) {
+            summarizeBtn.addEventListener('click', () => this.summarizeToNotes());
         }
         
-        if (italicBtn) {
-            italicBtn.addEventListener('click', () => this.toggleFormat('italic'));
+        if (saveNotesBtn) {
+            saveNotesBtn.addEventListener('click', () => this.saveNotesToSidebar());
         }
         
-        if (underlineBtn) {
-            underlineBtn.addEventListener('click', () => this.toggleFormat('underline'));
-        }
-        
-        if (strikethroughBtn) {
-            strikethroughBtn.addEventListener('click', () => this.toggleFormat('strikeThrough'));
-        }
-        
-        // List buttons
-        if (bulletListBtn) {
-            bulletListBtn.addEventListener('click', () => this.toggleFormat('insertUnorderedList'));
-        }
-        
-        if (numberListBtn) {
-            numberListBtn.addEventListener('click', () => this.toggleFormat('insertOrderedList'));
-        }
-        
-        if (indentBtn) {
-            indentBtn.addEventListener('click', () => document.execCommand('indent', false, null));
-        }
-        
-        if (outdentBtn) {
-            outdentBtn.addEventListener('click', () => document.execCommand('outdent', false, null));
-        }
-        
-        // Alignment buttons
-        if (alignLeftBtn) {
-            alignLeftBtn.addEventListener('click', () => this.toggleFormat('justifyLeft'));
-        }
-        
-        if (alignCenterBtn) {
-            alignCenterBtn.addEventListener('click', () => this.toggleFormat('justifyCenter'));
-        }
-        
-        if (alignRightBtn) {
-            alignRightBtn.addEventListener('click', () => this.toggleFormat('justifyRight'));
-        }
-        
-        // Font controls
-        if (fontSize) {
-            fontSize.addEventListener('change', (e) => {
-                const size = e.target.value + 'px';
-                document.execCommand('styleWithCSS', false, true);
-                document.execCommand('fontSize', false, '7');
-                
-                // Clean up the font size implementation
-                setTimeout(() => {
-                    const fontElements = document.querySelectorAll('#notesEditor font[size="7"]');
-                    fontElements.forEach(el => {
-                        el.removeAttribute('size');
-                        el.style.fontSize = size;
-                    });
-                }, 10);
+        if (aiSearchInput) {
+            aiSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.askAI();
+                }
             });
         }
         
-        if (fontFamily) {
-            fontFamily.addEventListener('change', (e) => {
-                document.execCommand('fontName', false, e.target.value);
-            });
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => this.toggleSidebar());
         }
         
-        if (textColor) {
-            textColor.addEventListener('change', (e) => {
-                document.execCommand('foreColor', false, e.target.value);
-            });
-        }
-        
-        if (highlightColor) {
-            highlightColor.addEventListener('change', (e) => {
-                document.execCommand('backColor', false, e.target.value);
-            });
+        if (sidebarClose) {
+            sidebarClose.addEventListener('click', () => this.closeSidebar());
         }
         
         // Keyboard shortcuts
@@ -3274,6 +3573,1715 @@ Generate ${cardCount} flashcards:`;
     closeSummaryPanel() {
         if (this.summaryPanel) {
             this.summaryPanel.style.display = 'none';
+        }
+    }
+    
+    // AI-Powered Note Taker Methods
+    async summarizeToNotes() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        const notesEditor = document.getElementById('notesEditor');
+        const summarizeBtn = document.getElementById('summarizeBtn');
+        
+        if (!notesEditor || !summarizeBtn) return;
+        
+        // Show loading state
+        const originalText = summarizeBtn.textContent;
+        summarizeBtn.textContent = 'Summarizing...';
+        summarizeBtn.disabled = true;
+        
+        try {
+            // Extract text from PDF
+            const pdfText = await this.extractPDFText();
+            
+            if (!pdfText || pdfText.trim().length === 0) {
+                throw new Error('No text found in PDF. Cannot generate summary.');
+            }
+            
+            // Generate summary using Gemini AI
+            const summary = await this.generateNotes(pdfText);
+            
+            // Add summary to notes editor
+            const currentContent = notesEditor.innerHTML;
+            const summarySection = `
+                <div class="ai-summary-section" style="margin-bottom: 1.5rem; padding: 1rem; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #007bff; font-size: 1rem;">📝 AI Summary</h4>
+                    <p style="margin: 0; line-height: 1.6;">${summary}</p>
+                    <small style="color: #6c757d; font-size: 0.8rem;">Generated on ${new Date().toLocaleString()}</small>
+                </div>
+            `;
+            
+            if (currentContent === '<p>Start typing your notes here...</p>') {
+                notesEditor.innerHTML = summarySection;
+            } else {
+                notesEditor.innerHTML = currentContent + summarySection;
+            }
+            
+            // Focus editor and update word count
+            notesEditor.focus();
+            this.updateWordCount();
+            this.autoSave();
+            
+        } catch (error) {
+            console.error('Summary generation error:', error);
+            alert('Error generating summary: ' + error.message);
+        } finally {
+            // Reset button state
+            summarizeBtn.textContent = originalText;
+            summarizeBtn.disabled = false;
+        }
+    }
+    
+    async askAI() {
+        const aiSearchInput = document.getElementById('aiSearchInput');
+        const aiSearchResults = document.getElementById('aiSearchResults');
+        
+        if (!aiSearchInput || !aiSearchResults) return;
+        
+        const query = aiSearchInput.value.trim();
+        if (!query) {
+            alert('Please enter a question or request.');
+            return;
+        }
+        
+        // Show loading state
+        aiSearchInput.disabled = true;
+        aiSearchInput.placeholder = 'Asking AI...';
+        aiSearchResults.style.display = 'block';
+        aiSearchResults.className = 'ai-search-results loading';
+        aiSearchResults.textContent = 'AI is thinking...';
+        
+        try {
+            // Get current notes content
+            const notesEditor = document.getElementById('notesEditor');
+            const notesContent = notesEditor ? notesEditor.textContent || notesEditor.innerText || '' : '';
+            
+            // Get PDF text for context
+            let pdfContext = '';
+            if (this.currentPDF) {
+                try {
+                    pdfContext = await this.extractPDFText();
+                } catch (error) {
+                    console.log('Could not extract PDF text for context');
+                }
+            }
+            
+            // Generate AI response
+            const response = await this.generateAIResponse(query, notesContent, pdfContext);
+            
+            // Display response
+            aiSearchResults.className = 'ai-search-results';
+            aiSearchResults.innerHTML = `
+                <div class="ai-response" style="margin-bottom: 1rem;">
+                    <strong>🤖 AI Response:</strong>
+                    <p style="margin: 0.5rem 0 0 0; line-height: 1.6;">${response}</p>
+                </div>
+                <div class="ai-actions" style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button onclick="pdfUploader.addToNotes('${response.replace(/'/g, "\\'")}')" style="padding: 0.5rem 1rem; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Add to Notes</button>
+                    <button onclick="pdfUploader.clearAIResponse()" style="padding: 0.5rem 1rem; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Clear</button>
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('AI query error:', error);
+            aiSearchResults.className = 'ai-search-results';
+            aiSearchResults.innerHTML = `
+                <div style="color: #dc3545;">
+                    <strong>❌ Error:</strong> ${error.message}
+                </div>
+            `;
+        } finally {
+            // Reset input state
+            aiSearchInput.disabled = false;
+            aiSearchInput.placeholder = 'Ask anything';
+        }
+    }
+    
+    // Method to validate API key
+    validateAPIKey() {
+        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
+        
+        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            throw new Error('Please configure your Gemini API key in config.js');
+        }
+        
+        if (!apiKey || apiKey.length < 20) {
+            throw new Error('Invalid API key format. Please check your Gemini API key in config.js');
+        }
+        
+        if (!apiKey.startsWith('AIza')) {
+            throw new Error('API key format appears incorrect. Gemini API keys typically start with "AIza"');
+        }
+        
+        return apiKey;
+    }
+
+    // Method to test API connection
+    async testAPIConnection() {
+        try {
+            const apiKey = this.validateAPIKey();
+            this.showStatus('🔍 Testing API connection...', 'info');
+            
+            console.log('Testing API with key:', apiKey.substring(0, 10) + '...');
+            
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: 'Hello'
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        maxOutputTokens: 10,
+                    }
+                })
+            });
+
+            console.log('API Response Status:', response.status);
+            console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.log('API Error Response:', errorText);
+                
+                if (response.status === 429) {
+                    throw new Error('API is rate limited. Please wait a few minutes and try again.');
+                } else if (response.status === 400) {
+                    throw new Error('Invalid API key or request format.');
+                } else if (response.status === 403) {
+                    throw new Error('API key does not have permission or quota exceeded.');
+                } else {
+                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+            }
+
+            const data = await response.json();
+            console.log('API Success Response:', data);
+            this.showStatus('✅ API connection successful!', 'success');
+            return true;
+        } catch (error) {
+            console.error('API Test Error:', error);
+            this.showStatus(`❌ API test failed: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    // Method to enforce delays between API calls
+    async enforceAPIRateLimit() {
+        const now = Date.now();
+        const timeSinceLastCall = now - this.lastAPICall;
+        
+        // Reset call count every minute
+        if (timeSinceLastCall > 60000) {
+            this.apiCallCount = 0;
+            this.updateAPIStatus();
+        }
+        
+        // Check if we've exceeded calls per minute
+        if (this.apiCallCount >= this.maxCallsPerMinute) {
+            const waitTime = 60000 - timeSinceLastCall; // Wait for minute to reset
+            console.log(`Rate limit: ${this.apiCallCount}/${this.maxCallsPerMinute} calls used. Waiting ${Math.round(waitTime/1000)}s...`);
+            this.showStatus(`Rate limit reached (${this.apiCallCount}/${this.maxCallsPerMinute} calls). Waiting ${Math.round(waitTime/1000)}s...`, 'warning');
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            this.apiCallCount = 0;
+        }
+        
+        // Enforce minimum delay between calls
+        if (timeSinceLastCall < this.minAPIDelay) {
+            const waitTime = this.minAPIDelay - timeSinceLastCall;
+            console.log(`Enforcing rate limit: waiting ${waitTime}ms before API call`);
+            this.showStatus(`Waiting ${Math.round(waitTime/1000)}s before API call...`, 'info');
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        this.lastAPICall = Date.now();
+        this.apiCallCount++;
+        this.updateAPIStatus();
+    }
+    
+    // Method to update API status display
+    updateAPIStatus() {
+        const apiCallCountEl = document.getElementById('apiCallCount');
+        const apiMaxCallsEl = document.getElementById('apiMaxCalls');
+        const apiStatusEl = document.getElementById('apiStatus');
+        
+        if (apiCallCountEl) apiCallCountEl.textContent = this.apiCallCount;
+        if (apiMaxCallsEl) apiMaxCallsEl.textContent = this.maxCallsPerMinute;
+        
+        if (apiStatusEl) {
+            // Remove existing classes
+            apiStatusEl.classList.remove('warning', 'error');
+            
+            // Add appropriate class based on usage
+            if (this.apiCallCount >= this.maxCallsPerMinute * 0.8) {
+                apiStatusEl.classList.add('warning');
+            } else if (this.apiCallCount >= this.maxCallsPerMinute) {
+                apiStatusEl.classList.add('error');
+            }
+        }
+    }
+    
+    // Method to reset API rate limit
+    resetAPIRateLimit() {
+        this.apiCallCount = 0;
+        this.lastAPICall = 0;
+        this.updateAPIStatus();
+        this.showStatus('🔄 API rate limit reset!', 'success');
+        setTimeout(() => this.hideStatus(), 2000);
+    }
+
+    // Utility method for API calls with retry logic
+    async makeAPICallWithRetry(apiCall, maxRetries = 3, baseDelay = 5000) {
+        // Enforce rate limiting before making the call
+        await this.enforceAPIRateLimit();
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const result = await apiCall();
+                // Clear any rate limiting messages on success
+                this.hideStatus();
+                return result;
+            } catch (error) {
+                console.log(`API call attempt ${attempt} failed:`, error.message);
+                
+                // Check for rate limiting (429) or quota exceeded errors
+                const isRateLimit = error.message.includes('429') || 
+                                  error.message.includes('quota') || 
+                                  error.message.includes('rate limit') ||
+                                  error.message.includes('Too Many Requests') ||
+                                  error.message.includes('RESOURCE_EXHAUSTED');
+                
+                console.log('Error details:', {
+                    message: error.message,
+                    isRateLimit: isRateLimit,
+                    attempt: attempt,
+                    maxRetries: maxRetries
+                });
+                
+                if (isRateLimit && attempt < maxRetries) {
+                    // Longer delays with jitter to avoid thundering herd
+                    const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+                    console.log(`Rate limited. Waiting ${Math.round(delay)}ms before retry ${attempt + 1}...`);
+                    
+                    // Show user-friendly message
+                    this.showStatus(`🔄 Rate limited by API. Retrying in ${Math.round(delay/1000)}s... (attempt ${attempt + 1}/${maxRetries})`, 'warning');
+                    
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                
+                // If it's not a rate limit error or we're out of retries, throw the error
+                throw error;
+            }
+        }
+        
+        // If we get here, all retries failed
+        this.showStatus('❌ All retry attempts failed due to rate limiting. Please wait 5-10 minutes and try again.', 'error');
+        console.log('Rate limiting troubleshooting:');
+        console.log('1. Check if your API key has sufficient quota');
+        console.log('2. Verify the API key is valid and active');
+        console.log('3. Consider upgrading your Google Cloud billing plan');
+        console.log('4. Try again in 5-10 minutes');
+        throw new Error('All retry attempts failed due to rate limiting. Please wait a few minutes and try again.');
+    }
+
+    async generateAIResponse(query, notesContent, pdfContext) {
+        const apiKey = this.validateAPIKey();
+        
+        let prompt = `You are an AI assistant helping with note-taking and document analysis. Please provide a helpful response to the user's query.
+        
+User's Question: ${query}`;
+
+        if (notesContent && notesContent.trim()) {
+            prompt += `\n\nCurrent Notes Context:\n${notesContent}`;
+        }
+        
+        if (pdfContext && pdfContext.trim()) {
+            prompt += `\n\nPDF Document Context:\n${pdfContext.substring(0, 2000)}...`;
+        }
+        
+        prompt += `\n\nPlease provide a clear, helpful response that addresses the user's question. If relevant, suggest how they might improve their notes or understand the content better.`;
+
+        try {
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 1024,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            });
+        } catch (error) {
+            console.error('Gemini API error:', error);
+            throw error;
+        }
+    }
+    
+    addToNotes(text) {
+        const notesEditor = document.getElementById('notesEditor');
+        if (!notesEditor) return;
+        
+        const currentContent = notesEditor.innerHTML;
+        const aiSection = `
+            <div class="ai-added-section" style="margin-bottom: 1rem; padding: 0.75rem; background-color: #e8f5e8; border-left: 3px solid #28a745; border-radius: 4px;">
+                <p style="margin: 0; line-height: 1.6;">${text}</p>
+                <small style="color: #6c757d; font-size: 0.8rem;">Added by AI on ${new Date().toLocaleString()}</small>
+            </div>
+        `;
+        
+        if (currentContent === '<p>Start typing your notes here...</p>') {
+            notesEditor.innerHTML = aiSection;
+        } else {
+            notesEditor.innerHTML = currentContent + aiSection;
+        }
+        
+        notesEditor.focus();
+        this.updateWordCount();
+        this.autoSave();
+        this.clearAIResponse();
+    }
+    
+    clearAIResponse() {
+        const aiSearchInput = document.getElementById('aiSearchInput');
+        const aiSearchResults = document.getElementById('aiSearchResults');
+        
+        if (aiSearchInput) aiSearchInput.value = '';
+        if (aiSearchResults) {
+            aiSearchResults.style.display = 'none';
+            aiSearchResults.innerHTML = '';
+        }
+    }
+    
+    // Sidebar Methods
+    toggleSidebar() {
+        const notesSidebar = document.getElementById('notesSidebar');
+        const notesMainContent = document.querySelector('.notes-main-content');
+        
+        if (notesSidebar) {
+            notesSidebar.classList.toggle('open');
+            
+            // Toggle the sidebar-open class for fallback support
+            if (notesMainContent) {
+                notesMainContent.classList.toggle('sidebar-open');
+            }
+        }
+    }
+    
+    closeSidebar() {
+        const notesSidebar = document.getElementById('notesSidebar');
+        const notesMainContent = document.querySelector('.notes-main-content');
+        
+        if (notesSidebar) {
+            notesSidebar.classList.remove('open');
+            
+            // Remove the sidebar-open class
+            if (notesMainContent) {
+                notesMainContent.classList.remove('sidebar-open');
+            }
+        }
+    }
+    
+    saveNotesToSidebar() {
+        const notesEditor = document.getElementById('notesEditor');
+        const savedNotesList = document.getElementById('savedNotesList');
+        
+        if (!notesEditor || !savedNotesList) return;
+        
+        const content = notesEditor.textContent || notesEditor.innerText || '';
+        if (!content.trim() || content.trim() === 'Start typing your notes here...') {
+            alert('Please add some content to your notes before saving.');
+            return;
+        }
+        
+        const title = prompt('Enter a title for your notes:');
+        if (!title) return;
+        
+        const noteId = Date.now().toString();
+        const noteData = {
+            id: noteId,
+            title: title,
+            content: notesEditor.innerHTML,
+            timestamp: new Date().toISOString(),
+            preview: content.substring(0, 100) + (content.length > 100 ? '...' : '')
+        };
+        
+        // Save to localStorage
+        const savedNotes = JSON.parse(localStorage.getItem('pdfTutor_savedNotes') || '[]');
+        savedNotes.unshift(noteData); // Add to beginning
+        localStorage.setItem('pdfTutor_savedNotes', JSON.stringify(savedNotes));
+        
+        // Update sidebar
+        this.updateSavedNotesList();
+        
+        alert('Notes saved successfully!');
+    }
+    
+    updateSavedNotesList() {
+        const savedNotesList = document.getElementById('savedNotesList');
+        if (!savedNotesList) return;
+        
+        const savedNotes = JSON.parse(localStorage.getItem('pdfTutor_savedNotes') || '[]');
+        
+        if (savedNotes.length === 0) {
+            savedNotesList.innerHTML = '<p style="color: #999; text-align: center; padding: 2rem;">No saved notes yet</p>';
+            return;
+        }
+        
+        savedNotesList.innerHTML = savedNotes.map(note => `
+            <div class="saved-note-item" data-note-id="${note.id}">
+                <div class="saved-note-title">${note.title}</div>
+                <div class="saved-note-preview">${note.preview}</div>
+                <div style="font-size: 0.7rem; color: #666; margin-top: 0.25rem;">
+                    ${new Date(note.timestamp).toLocaleDateString()}
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click listeners to load notes
+        savedNotesList.querySelectorAll('.saved-note-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const noteId = item.dataset.noteId;
+                this.loadSavedNote(noteId);
+                this.closeSidebar();
+            });
+        });
+    }
+    
+    loadSavedNote(noteId) {
+        const savedNotes = JSON.parse(localStorage.getItem('pdfTutor_savedNotes') || '[]');
+        const note = savedNotes.find(n => n.id === noteId);
+        
+        if (!note) return;
+        
+        const notesEditor = document.getElementById('notesEditor');
+        if (notesEditor) {
+            notesEditor.innerHTML = note.content;
+            notesEditor.focus();
+            this.updateWordCount();
+        }
+    }
+    
+    // Diagram Tool Methods
+    initializeDiagramTool() {
+        // Create diagram button
+        const diagramButton = document.createElement('button');
+        diagramButton.className = 'diagram-btn';
+        diagramButton.innerHTML = '📊 Diagrams';
+        diagramButton.addEventListener('click', () => this.toggleDiagramsSidebar());
+        
+        // Add the button to the diagram container
+        const diagramContainer = document.getElementById('diagram-button-container');
+        if (diagramContainer) {
+            diagramContainer.appendChild(diagramButton);
+        }
+        
+        // Initialize diagram functionality
+        this.initializeDiagramFunctionality();
+    }
+    
+    initializeDiagramFunctionality() {
+        // Diagram state
+        this.diagramState = {
+            isOpen: false,
+            currentDiagram: null,
+            nodes: [],
+            connections: [],
+            selectedNode: null,
+            diagramType: 'mindmap',
+            complexity: 'medium',
+            isEditMode: false
+        };
+        
+        // Bind diagram events
+        this.bindDiagramEvents();
+    }
+    
+    bindDiagramEvents() {
+        const closeDiagramsBtn = document.getElementById('close-diagrams-sidebar');
+        
+        if (closeDiagramsBtn) {
+            closeDiagramsBtn.addEventListener('click', () => this.closeDiagramsSidebar());
+        }
+    }
+    
+    toggleDiagramsSidebar() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        const diagramsSidebar = document.getElementById('diagramsSidebar');
+        if (!diagramsSidebar) return;
+        
+        if (this.diagramState.isOpen) {
+            this.closeDiagramsSidebar();
+        } else {
+            this.openDiagramsSidebar();
+        }
+    }
+    
+    openDiagramsSidebar() {
+        // Close other sidebars first
+        this.closeQuizSidebar();
+        this.closeFlashcardsSidebar();
+        this.closeResourcesSidebar();
+        
+        const diagramsSidebar = document.getElementById('diagramsSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (diagramsSidebar) {
+            diagramsSidebar.classList.add('open');
+            if (notesArea) notesArea.classList.add('sidebar-open');
+            this.diagramState.isOpen = true;
+            this.showDiagramsGenerationSection();
+        }
+    }
+    
+    closeDiagramsSidebar() {
+        const diagramsSidebar = document.getElementById('diagramsSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (diagramsSidebar) {
+            diagramsSidebar.classList.remove('open');
+            if (notesArea) notesArea.classList.remove('sidebar-open');
+            this.diagramState.isOpen = false;
+        }
+    }
+    
+    showDiagramsGenerationSection() {
+        const sidebarContent = document.getElementById('diagramsSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>📊 Generate Diagram</h4>
+                <p>AI will analyze your PDF and create an interactive diagram</p>
+            </div>
+            
+            <div class="sidebar-options">
+                <div class="sidebar-option-group">
+                    <label for="diagramType">Diagram Type:</label>
+                    <select id="diagramType" class="sidebar-form-select">
+                        <option value="mindmap">🧠 Mind Map</option>
+                        <option value="flowchart">🔄 Flowchart</option>
+                        <option value="timeline">⏰ Timeline</option>
+                    </select>
+                </div>
+                
+                <div class="sidebar-option-group">
+                    <label for="diagramComplexity">Complexity:</label>
+                    <select id="diagramComplexity" class="sidebar-form-select">
+                        <option value="simple">Simple (5-10 nodes)</option>
+                        <option value="medium" selected>Medium (10-20 nodes)</option>
+                        <option value="detailed">Detailed (20+ nodes)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="generate-diagram-btn" class="sidebar-btn">
+                    🎯 Generate Diagram
+                </button>
+            </div>
+            
+            <div id="diagramLoading" class="sidebar-loading" style="display: none;">
+                <div class="sidebar-spinner"></div>
+                <p>Generating diagram...</p>
+            </div>
+        `;
+        
+        // Bind diagrams sidebar events
+        this.bindDiagramsSidebarEvents();
+    }
+    
+    bindDiagramsSidebarEvents() {
+        const generateDiagramBtn = document.getElementById('generate-diagram-btn');
+        const diagramType = document.getElementById('diagramType');
+        const diagramComplexity = document.getElementById('diagramComplexity');
+        
+        if (generateDiagramBtn) {
+            generateDiagramBtn.addEventListener('click', () => this.generateDiagram());
+        }
+        
+        if (diagramType) {
+            diagramType.addEventListener('change', (e) => {
+                this.diagramState.diagramType = e.target.value;
+            });
+        }
+        
+        if (diagramComplexity) {
+            diagramComplexity.addEventListener('change', (e) => {
+                this.diagramState.complexity = e.target.value;
+            });
+        }
+    }
+    
+    
+    showGenerationSection() {
+        const generationSection = document.getElementById('diagramGenerationSection');
+        const viewSection = document.getElementById('diagramViewSection');
+        
+        if (generationSection) generationSection.style.display = 'block';
+        if (viewSection) viewSection.style.display = 'none';
+    }
+    
+    showDiagramSection() {
+        const sidebarContent = document.getElementById('diagramsSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>📊 ${this.diagramState.diagramType.charAt(0).toUpperCase() + this.diagramState.diagramType.slice(1)}</h4>
+                <p>Interactive diagram with ${this.diagramState.nodes.length} nodes</p>
+            </div>
+            
+            <div class="diagram-canvas-sidebar" id="diagramCanvasSidebar">
+                ${this.generateDiagramNodesHTML()}
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="add-node-btn" class="sidebar-btn secondary">
+                    + Add Node
+                </button>
+                <button id="edit-diagram-btn" class="sidebar-btn secondary">
+                    ✏️ Edit
+                </button>
+                <button id="export-diagram-btn" class="sidebar-btn secondary">
+                    💾 Export
+                </button>
+                <button id="new-diagram-btn" class="sidebar-btn">
+                    🆕 New
+                </button>
+            </div>
+        `;
+        
+        // Bind diagram view events
+        this.bindDiagramViewEvents();
+    }
+    
+    generateDiagramNodesHTML() {
+        return this.diagramState.nodes.map(node => `
+            <div class="diagram-node-sidebar ${node.type || 'branch'}" 
+                 style="left: ${Math.min(node.x, 250)}px; top: ${Math.min(node.y, 200)}px;">
+                ${node.label}
+            </div>
+        `).join('');
+    }
+    
+    bindDiagramViewEvents() {
+        const addNodeBtn = document.getElementById('add-node-btn');
+        const editBtn = document.getElementById('edit-diagram-btn');
+        const exportBtn = document.getElementById('export-diagram-btn');
+        const newDiagramBtn = document.getElementById('new-diagram-btn');
+        
+        if (addNodeBtn) {
+            addNodeBtn.addEventListener('click', () => this.addManualNode());
+        }
+        
+        if (editBtn) {
+            editBtn.addEventListener('click', () => this.toggleEditMode());
+        }
+        
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportDiagram());
+        }
+        
+        if (newDiagramBtn) {
+            newDiagramBtn.addEventListener('click', () => this.newDiagram());
+        }
+    }
+    
+    async generateDiagram() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        this.showDiagramLoading();
+        
+        try {
+            // Extract text from PDF
+            const pdfText = await this.extractPDFText();
+            
+            if (!pdfText || pdfText.trim().length === 0) {
+                throw new Error('No text found in PDF. Cannot generate diagram.');
+            }
+            
+            // Generate diagram using Gemini AI
+            const diagramData = await this.generateDiagramStructure(pdfText);
+            
+            this.diagramState.currentDiagram = diagramData;
+            this.diagramState.nodes = diagramData.nodes || [];
+            this.diagramState.connections = diagramData.connections || [];
+            
+            this.hideDiagramLoading();
+            this.showDiagramSection();
+            this.renderDiagram();
+            this.updateDiagramInfo();
+            
+        } catch (error) {
+            console.error('Diagram generation error:', error);
+            this.hideDiagramLoading();
+            alert('Error generating diagram: ' + error.message);
+        }
+    }
+    
+    async generateDiagramStructure(pdfText) {
+        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
+        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            throw new Error('Please configure your Gemini API key in config.js');
+        }
+        
+        const diagramType = this.diagramState.diagramType;
+        const complexity = this.diagramState.complexity;
+        
+        let nodeCount = 10;
+        switch (complexity) {
+            case 'simple': nodeCount = 8; break;
+            case 'medium': nodeCount = 15; break;
+            case 'detailed': nodeCount = 25; break;
+        }
+        
+        const prompt = `Analyze the following PDF text and create a ${diagramType} diagram structure. 
+
+Diagram Type: ${diagramType}
+- mindmap: Central topic with related subtopics branching out
+- flowchart: Sequential process with decision points and flows
+- timeline: Chronological events with dates and descriptions
+
+Complexity: ${complexity} (approximately ${nodeCount} nodes)
+
+Requirements:
+1. Extract key concepts, terms, and relationships from the text
+2. Create a logical structure based on the diagram type
+3. Include meaningful connections between nodes
+4. Focus on the most important information
+5. Make nodes descriptive but concise
+
+Format the response as JSON with this structure:
+{
+  "type": "${diagramType}",
+  "title": "Main topic/title",
+  "nodes": [
+    {
+      "id": "node1",
+      "label": "Node text",
+      "type": "root|branch|leaf",
+      "x": 100,
+      "y": 100
+    }
+  ],
+  "connections": [
+    {
+      "from": "node1",
+      "to": "node2",
+      "label": "connection text (optional)"
+    }
+  ]
+}
+
+PDF Text:
+${pdfText}
+
+Generate ${diagramType} diagram:`;
+
+        try {
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 2048,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const responseText = data.candidates[0].content.parts[0].text.trim();
+                    
+                    // Try to parse JSON from the response
+                    try {
+                        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            const diagramData = JSON.parse(jsonMatch[0]);
+                            return diagramData;
+                        } else {
+                            throw new Error('No valid JSON found in response');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.log('Raw response:', responseText);
+                        throw new Error('Failed to parse diagram structure from AI response');
+                    }
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            });
+        } catch (error) {
+            console.error('Gemini API error:', error);
+            throw error;
+        }
+    }
+    
+    renderDiagram() {
+        const canvas = document.getElementById('diagramCanvas');
+        if (!canvas) return;
+        
+        // Clear existing diagram
+        canvas.innerHTML = '';
+        
+        // Render nodes
+        this.diagramState.nodes.forEach(node => {
+            this.createDiagramNode(node);
+        });
+        
+        // Render connections
+        this.diagramState.connections.forEach(connection => {
+            this.createDiagramConnection(connection);
+        });
+    }
+    
+    createDiagramNode(nodeData) {
+        const canvas = document.getElementById('diagramCanvas');
+        const nodeElement = document.createElement('div');
+        
+        nodeElement.className = `diagram-node ${nodeData.type || 'branch'}`;
+        nodeElement.id = nodeData.id;
+        nodeElement.textContent = nodeData.label;
+        nodeElement.style.left = `${nodeData.x}px`;
+        nodeElement.style.top = `${nodeData.y}px`;
+        
+        // Add event listeners
+        nodeElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.selectNode(nodeData.id);
+        });
+        
+        nodeElement.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            this.editNode(nodeData.id);
+        });
+        
+        // Make draggable if in edit mode
+        if (this.diagramState.isEditMode) {
+            this.makeNodeDraggable(nodeElement);
+        }
+        
+        canvas.appendChild(nodeElement);
+    }
+    
+    createDiagramConnection(connectionData) {
+        const canvas = document.getElementById('diagramCanvas');
+        const fromNode = document.getElementById(connectionData.from);
+        const toNode = document.getElementById(connectionData.to);
+        
+        if (!fromNode || !toNode) return;
+        
+        const connectionElement = document.createElement('div');
+        connectionElement.className = 'diagram-connection';
+        connectionElement.id = `connection-${connectionData.from}-${connectionData.to}`;
+        
+        // Calculate connection line
+        const fromRect = fromNode.getBoundingClientRect();
+        const toRect = toNode.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        const fromX = fromRect.left - canvasRect.left + fromRect.width / 2;
+        const fromY = fromRect.top - canvasRect.top + fromRect.height / 2;
+        const toX = toRect.left - canvasRect.left + toRect.width / 2;
+        const toY = toRect.top - canvasRect.top + toRect.height / 2;
+        
+        const length = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+        const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+        
+        connectionElement.style.left = `${fromX}px`;
+        connectionElement.style.top = `${fromY}px`;
+        connectionElement.style.width = `${length}px`;
+        connectionElement.style.transform = `rotate(${angle}deg)`;
+        connectionElement.style.transformOrigin = '0 50%';
+        
+        canvas.appendChild(connectionElement);
+    }
+    
+    selectNode(nodeId) {
+        // Remove previous selection
+        document.querySelectorAll('.diagram-node').forEach(node => {
+            node.classList.remove('selected');
+        });
+        
+        // Select current node
+        const node = document.getElementById(nodeId);
+        if (node) {
+            node.classList.add('selected');
+            this.diagramState.selectedNode = nodeId;
+        }
+    }
+    
+    editNode(nodeId) {
+        const node = document.getElementById(nodeId);
+        if (!node) return;
+        
+        const newText = prompt('Edit node text:', node.textContent);
+        if (newText && newText.trim()) {
+            node.textContent = newText.trim();
+            
+            // Update node data
+            const nodeData = this.diagramState.nodes.find(n => n.id === nodeId);
+            if (nodeData) {
+                nodeData.label = newText.trim();
+            }
+        }
+    }
+    
+    makeNodeDraggable(nodeElement) {
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+        
+        nodeElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = parseInt(nodeElement.style.left) || 0;
+            startTop = parseInt(nodeElement.style.top) || 0;
+            
+            nodeElement.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            nodeElement.style.left = `${startLeft + deltaX}px`;
+            nodeElement.style.top = `${startTop + deltaY}px`;
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                nodeElement.style.cursor = 'pointer';
+                
+                // Update node data
+                const nodeId = nodeElement.id;
+                const nodeData = this.diagramState.nodes.find(n => n.id === nodeId);
+                if (nodeData) {
+                    nodeData.x = parseInt(nodeElement.style.left);
+                    nodeData.y = parseInt(nodeElement.style.top);
+                }
+                
+                // Re-render connections
+                this.renderDiagram();
+            }
+        });
+    }
+    
+    addManualNode() {
+        const canvas = document.getElementById('diagramCanvas');
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        const nodeText = prompt('Enter node text:');
+        if (!nodeText || !nodeText.trim()) return;
+        
+        const nodeId = `node_${Date.now()}`;
+        const newNode = {
+            id: nodeId,
+            label: nodeText.trim(),
+            type: 'branch',
+            x: Math.random() * (canvasRect.width - 200) + 100,
+            y: Math.random() * (canvasRect.height - 100) + 100
+        };
+        
+        this.diagramState.nodes.push(newNode);
+        this.createDiagramNode(newNode);
+        this.updateDiagramInfo();
+    }
+    
+    toggleEditMode() {
+        this.diagramState.isEditMode = !this.diagramState.isEditMode;
+        const editBtn = document.getElementById('edit-diagram-btn');
+        
+        if (editBtn) {
+            editBtn.textContent = this.diagramState.isEditMode ? '✏️ Exit Edit' : '✏️ Edit';
+            editBtn.style.backgroundColor = this.diagramState.isEditMode ? '#28a745' : '#404040';
+        }
+        
+        // Make nodes draggable in edit mode
+        document.querySelectorAll('.diagram-node').forEach(node => {
+            if (this.diagramState.isEditMode) {
+                this.makeNodeDraggable(node);
+            }
+        });
+    }
+    
+    exportDiagram() {
+        // Create a simple export as text
+        let exportText = `Diagram: ${this.diagramState.currentDiagram?.title || 'Untitled'}\n`;
+        exportText += `Type: ${this.diagramState.diagramType}\n\n`;
+        exportText += 'Nodes:\n';
+        
+        this.diagramState.nodes.forEach(node => {
+            exportText += `- ${node.label} (${node.type})\n`;
+        });
+        
+        exportText += '\nConnections:\n';
+        this.diagramState.connections.forEach(connection => {
+            const fromNode = this.diagramState.nodes.find(n => n.id === connection.from);
+            const toNode = this.diagramState.nodes.find(n => n.id === connection.to);
+            exportText += `- ${fromNode?.label || connection.from} → ${toNode?.label || connection.to}\n`;
+        });
+        
+        // Download as text file
+        const blob = new Blob([exportText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `diagram-${this.diagramState.diagramType}-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    newDiagram() {
+        this.showDiagramsGenerationSection();
+        this.diagramState.currentDiagram = null;
+        this.diagramState.nodes = [];
+        this.diagramState.connections = [];
+        this.diagramState.selectedNode = null;
+        this.diagramState.isEditMode = false;
+    }
+    
+    updateDiagramInfo() {
+        const typeLabel = document.getElementById('diagramTypeLabel');
+        const nodeCount = document.getElementById('nodeCount');
+        
+        if (typeLabel) {
+            typeLabel.textContent = this.diagramState.diagramType.charAt(0).toUpperCase() + this.diagramState.diagramType.slice(1);
+        }
+        
+        if (nodeCount) {
+            nodeCount.textContent = `${this.diagramState.nodes.length} nodes`;
+        }
+    }
+    
+    showDiagramLoading() {
+        const loading = document.getElementById('diagramLoading');
+        const generateBtn = document.getElementById('generate-diagram-btn');
+        
+        if (loading) loading.style.display = 'flex';
+        if (generateBtn) {
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+        }
+    }
+    
+    hideDiagramLoading() {
+        const loading = document.getElementById('diagramLoading');
+        const generateBtn = document.getElementById('generate-diagram-btn');
+        
+        if (loading) loading.style.display = 'none';
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🎯 Generate Diagram';
+        }
+    }
+    
+    // Resources Tool Methods
+    initializeResourcesTool() {
+        // Create resources button
+        const resourcesButton = document.createElement('button');
+        resourcesButton.className = 'resources-btn';
+        resourcesButton.innerHTML = '📚 More Resources';
+        resourcesButton.addEventListener('click', () => this.toggleResourcesSidebar());
+        
+        // Add the button to the resources container
+        const resourcesContainer = document.getElementById('resources-button-container');
+        if (resourcesContainer) {
+            resourcesContainer.appendChild(resourcesButton);
+        }
+        
+        // Initialize resources functionality
+        this.initializeResourcesFunctionality();
+    }
+    
+    initializeResourcesFunctionality() {
+        // Resources state
+        this.resourcesState = {
+            isOpen: false,
+            detectedSubject: null,
+            confidence: 0,
+            resources: {
+                theory: [],
+                practice: [],
+                drills: []
+            },
+            savedResources: JSON.parse(localStorage.getItem('pdfTutor_savedResources') || '[]')
+        };
+        
+        // Bind resources events
+        this.bindResourcesEvents();
+    }
+    
+    bindResourcesEvents() {
+        const closeResourcesBtn = document.getElementById('close-resources-btn');
+        const refreshResourcesBtn = document.getElementById('refresh-resources-btn');
+        const saveStudyPlanBtn = document.getElementById('save-study-plan-btn');
+        const exportResourcesBtn = document.getElementById('export-resources-btn');
+        
+        if (closeResourcesBtn) {
+            closeResourcesBtn.addEventListener('click', () => this.closeResourcesDialog());
+        }
+        
+        if (refreshResourcesBtn) {
+            refreshResourcesBtn.addEventListener('click', () => this.analyzeAndFindResources());
+        }
+        
+        if (saveStudyPlanBtn) {
+            saveStudyPlanBtn.addEventListener('click', () => this.saveToStudyPlan());
+        }
+        
+        if (exportResourcesBtn) {
+            exportResourcesBtn.addEventListener('click', () => this.exportResourcesList());
+        }
+        
+        // Close dialog on background click
+        const resourcesDialog = document.getElementById('resourcesDialog');
+        if (resourcesDialog) {
+            resourcesDialog.addEventListener('click', (e) => {
+                if (e.target === resourcesDialog) {
+                    this.closeResourcesDialog();
+                }
+            });
+        }
+    }
+    
+    toggleResourcesSidebar() {
+        const resourcesSidebar = document.getElementById('resourcesSidebar');
+        if (!resourcesSidebar) return;
+        
+        if (this.resourcesState.isOpen) {
+            this.closeResourcesSidebar();
+        } else {
+            this.openResourcesSidebar();
+        }
+    }
+    
+    openResourcesSidebar() {
+        // Close other sidebars first
+        this.closeQuizSidebar();
+        this.closeFlashcardsSidebar();
+        this.closeDiagramsSidebar();
+        
+        const resourcesSidebar = document.getElementById('resourcesSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (resourcesSidebar) {
+            resourcesSidebar.classList.add('open');
+            if (notesArea) notesArea.classList.add('sidebar-open');
+            this.resourcesState.isOpen = true;
+            this.showResourcesAnalysisSection();
+            // Start analysis immediately
+            this.analyzeAndFindResources();
+        }
+    }
+    
+    closeResourcesSidebar() {
+        const resourcesSidebar = document.getElementById('resourcesSidebar');
+        const notesArea = document.querySelector('.notes-area');
+        if (resourcesSidebar) {
+            resourcesSidebar.classList.remove('open');
+            if (notesArea) notesArea.classList.remove('sidebar-open');
+            this.resourcesState.isOpen = false;
+        }
+    }
+    
+    showResourcesAnalysisSection() {
+        const sidebarContent = document.getElementById('resourcesSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <h4>🔍 Analyzing Your PDF</h4>
+                <p>AI is detecting the subject and finding relevant resources</p>
+            </div>
+            
+            <div id="resourcesLoading" class="sidebar-loading">
+                <div class="sidebar-spinner"></div>
+                <p>Analyzing content and finding resources...</p>
+            </div>
+        `;
+    }
+    
+    showResourcesDisplaySection() {
+        const sidebarContent = document.getElementById('resourcesSidebarContent');
+        if (!sidebarContent) return;
+        
+        sidebarContent.innerHTML = `
+            <div class="sidebar-section">
+                <div class="subject-info">
+                    <div class="subject-badge">
+                        <span id="detectedSubject">${this.resourcesState.detectedSubject || 'Subject'}</span>
+                    </div>
+                    <div class="confidence-score">
+                        Confidence: <span id="confidenceScore">${this.resourcesState.confidence || 85}%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="resources-categories">
+                <!-- Resources will be populated here -->
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="refresh-resources-btn" class="sidebar-btn secondary">🔄 Find More</button>
+                <button id="save-study-plan-btn" class="sidebar-btn">💾 Save Plan</button>
+                <button id="export-resources-btn" class="sidebar-btn secondary">📤 Export</button>
+            </div>
+        `;
+        
+        this.displayResourcesInSidebar();
+        this.bindResourcesSidebarEvents();
+    }
+    
+    displayResourcesInSidebar() {
+        // This will be implemented to show resources in the sidebar
+        const categoriesContainer = document.querySelector('.resources-categories');
+        if (!categoriesContainer) return;
+        
+        // Display resources by category
+        if (this.resourcesState.resources) {
+            this.displayResourceCategoryInSidebar('theory', this.resourcesState.resources.theory);
+            this.displayResourceCategoryInSidebar('practice', this.resourcesState.resources.practice);
+            this.displayResourceCategoryInSidebar('drills', this.resourcesState.resources.drills);
+        }
+    }
+    
+    displayResourceCategoryInSidebar(category, resources) {
+        const categoriesContainer = document.querySelector('.resources-categories');
+        if (!categoriesContainer || !resources) return;
+        
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'resource-category';
+        categoryDiv.innerHTML = `
+            <div class="category-header">
+                <h5>${this.getCategoryIcon(category)} ${this.getCategoryTitle(category)}</h5>
+                <span class="resource-count">${resources.length} resources</span>
+            </div>
+            <div class="resource-list">
+                ${resources.map(resource => `
+                    <div class="resource-item">
+                        <div class="resource-header">
+                            <span class="resource-type ${resource.type}">${this.getTypeIcon(resource.type)}</span>
+                            <h6 class="resource-title">${resource.title}</h6>
+                        </div>
+                        <p class="resource-description">${resource.description}</p>
+                        <div class="resource-meta">
+                            <span class="resource-source">${resource.source}</span>
+                            <div class="resource-actions">
+                                <button class="resource-action-btn" onclick="window.pdfUploader.openResource('${resource.url}')">Open</button>
+                                <button class="resource-action-btn" onclick="window.pdfUploader.saveResource(this, '${resource.title}', '${resource.url}', '${resource.type}')">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        categoriesContainer.appendChild(categoryDiv);
+    }
+    
+    getCategoryIcon(category) {
+        const icons = {
+            theory: '📖',
+            practice: '💡',
+            drills: '🏃'
+        };
+        return icons[category] || '📚';
+    }
+    
+    getCategoryTitle(category) {
+        const titles = {
+            theory: 'Theory & Concepts',
+            practice: 'Examples & Practice',
+            drills: 'Drills & Exercises'
+        };
+        return titles[category] || 'Resources';
+    }
+    
+    getTypeIcon(type) {
+        const icons = {
+            video: '🎥',
+            article: '📄',
+            practice: '💻',
+            flashcards: '🎴',
+            worksheet: '📝'
+        };
+        return icons[type] || '🔗';
+    }
+    
+    bindResourcesSidebarEvents() {
+        const refreshBtn = document.getElementById('refresh-resources-btn');
+        const savePlanBtn = document.getElementById('save-study-plan-btn');
+        const exportBtn = document.getElementById('export-resources-btn');
+        
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => this.analyzeAndFindResources());
+        }
+        
+        if (savePlanBtn) {
+            savePlanBtn.addEventListener('click', () => this.saveToStudyPlan());
+        }
+        
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => this.exportResourcesList());
+        }
+    }
+    
+    showResourcesSection() {
+        const analysisSection = document.getElementById('resourcesAnalysisSection');
+        const displaySection = document.getElementById('resourcesDisplaySection');
+        
+        if (analysisSection) analysisSection.style.display = 'none';
+        if (displaySection) displaySection.style.display = 'block';
+    }
+    
+    async analyzeAndFindResources() {
+        if (!this.currentPDF) {
+            alert('No PDF loaded. Please upload a PDF first.');
+            return;
+        }
+        
+        this.showAnalysisSection();
+        
+        try {
+            // Extract text from PDF
+            const pdfText = await this.extractPDFText();
+            
+            if (!pdfText || pdfText.trim().length === 0) {
+                throw new Error('No text found in PDF. Cannot analyze content.');
+            }
+            
+            // Analyze subject and find resources
+            const analysisResult = await this.analyzeSubjectAndFindResources(pdfText);
+            
+            this.resourcesState.detectedSubject = analysisResult.subject;
+            this.resourcesState.confidence = analysisResult.confidence;
+            this.resourcesState.resources = analysisResult.resources;
+            
+            this.showResourcesDisplaySection();
+            
+        } catch (error) {
+            console.error('Resources analysis error:', error);
+            alert('Error analyzing PDF and finding resources: ' + error.message);
+        }
+    }
+    
+    async analyzeSubjectAndFindResources(pdfText) {
+        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
+        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
+            throw new Error('Please configure your Gemini API key in config.js');
+        }
+        
+        const prompt = `Analyze the following PDF text and:
+1. Detect the primary subject/topic (e.g., mathematics, history, biology, chemistry, physics, literature, etc.)
+2. Provide a confidence score (0-100) for the subject detection
+3. Suggest relevant educational resources categorized by type
+
+Subject Detection:
+- Identify the main academic subject or field
+- Consider key concepts, terminology, and content structure
+- Provide confidence based on content clarity and specificity
+
+Resource Categories:
+- Theory & Concepts: Videos (Khan Academy, CrashCourse), articles, Wikipedia links
+- Examples & Practice: Practice problems, example walkthroughs, interactive exercises
+- Drills & Exercises: Worksheets, quizzes, flashcards (Quizlet), study guides
+
+Requirements:
+1. Each resource should have: title, description, source, URL, type
+2. Focus on high-quality, free educational resources
+3. Include 3-5 resources per category
+4. Make URLs realistic and educational
+5. Prioritize well-known educational platforms
+
+Format as JSON:
+{
+  "subject": "detected subject",
+  "confidence": 85,
+  "resources": {
+    "theory": [
+      {
+        "title": "Resource Title",
+        "description": "Brief description",
+        "source": "Khan Academy",
+        "url": "https://example.com",
+        "type": "video"
+      }
+    ],
+    "practice": [...],
+    "drills": [...]
+  }
+}
+
+PDF Text:
+${pdfText}
+
+Analyze and suggest resources:`;
+
+        try {
+            return await this.makeAPICallWithRetry(async () => {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{
+                                text: prompt
+                            }]
+                        }],
+                        generationConfig: {
+                            temperature: 0.7,
+                            topK: 40,
+                            topP: 0.95,
+                            maxOutputTokens: 2048,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const responseText = data.candidates[0].content.parts[0].text.trim();
+                    
+                    // Try to parse JSON from the response
+                    try {
+                        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                            const analysisResult = JSON.parse(jsonMatch[0]);
+                            return analysisResult;
+                        } else {
+                            throw new Error('No valid JSON found in response');
+                        }
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        console.log('Raw response:', responseText);
+                        throw new Error('Failed to parse analysis result from AI response');
+                    }
+                } else {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+            });
+        } catch (error) {
+            console.error('Gemini API error:', error);
+            throw error;
+        }
+    }
+    
+    displayResources() {
+        // Display theory resources
+        this.displayResourceCategory('theory', this.resourcesState.resources.theory);
+        // Display practice resources
+        this.displayResourceCategory('practice', this.resourcesState.resources.practice);
+        // Display drill resources
+        this.displayResourceCategory('drills', this.resourcesState.resources.drills);
+    }
+    
+    displayResourceCategory(category, resources) {
+        const container = document.getElementById(`${category}Resources`);
+        const countElement = document.getElementById(`${category}Count`);
+        
+        if (!container) return;
+        
+        if (countElement) {
+            countElement.textContent = `${resources.length} resources`;
+        }
+        
+        if (resources.length === 0) {
+            container.innerHTML = '<p style="color: #999; text-align: center; padding: 2rem;">No resources found for this category</p>';
+            return;
+        }
+        
+        container.innerHTML = resources.map(resource => `
+            <div class="resource-item" data-resource-id="${Date.now()}_${Math.random()}">
+                <div class="resource-header">
+                    <h6 class="resource-title">${resource.title}</h6>
+                    <span class="resource-type ${resource.type}">${resource.type}</span>
+                </div>
+                <p class="resource-description">${resource.description}</p>
+                <div class="resource-meta">
+                    <span class="resource-source">${resource.source}</span>
+                    <div class="resource-actions">
+                        <button class="resource-action-btn" onclick="pdfUploader.openResource('${resource.url}')">
+                            🔗 Open
+                        </button>
+                        <button class="resource-action-btn" onclick="pdfUploader.toggleHelpful(this, '${resource.title}')">
+                            👍 Helpful
+                        </button>
+                        <button class="resource-action-btn" onclick="pdfUploader.saveResource(this, '${resource.title}', '${resource.url}', '${resource.type}')">
+                            💾 Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    openResource(url) {
+        window.open(url, '_blank');
+    }
+    
+    toggleHelpful(button, resourceTitle) {
+        button.classList.toggle('helpful');
+        if (button.classList.contains('helpful')) {
+            button.textContent = '✅ Helpful';
+            // Store helpful resource
+            const helpfulResources = JSON.parse(localStorage.getItem('pdfTutor_helpfulResources') || '[]');
+            if (!helpfulResources.includes(resourceTitle)) {
+                helpfulResources.push(resourceTitle);
+                localStorage.setItem('pdfTutor_helpfulResources', JSON.stringify(helpfulResources));
+            }
+        } else {
+            button.textContent = '👍 Helpful';
+            // Remove from helpful resources
+            const helpfulResources = JSON.parse(localStorage.getItem('pdfTutor_helpfulResources') || '[]');
+            const index = helpfulResources.indexOf(resourceTitle);
+            if (index > -1) {
+                helpfulResources.splice(index, 1);
+                localStorage.setItem('pdfTutor_helpfulResources', JSON.stringify(helpfulResources));
+            }
+        }
+    }
+    
+    saveResource(button, resourceTitle, resourceUrl, resourceType) {
+        button.classList.toggle('saved');
+        if (button.classList.contains('saved')) {
+            button.textContent = '✅ Saved';
+            // Add to saved resources
+            const resourceData = {
+                title: resourceTitle,
+                url: resourceUrl,
+                type: resourceType,
+                timestamp: new Date().toISOString()
+            };
+            this.resourcesState.savedResources.push(resourceData);
+            localStorage.setItem('pdfTutor_savedResources', JSON.stringify(this.resourcesState.savedResources));
+        } else {
+            button.textContent = '💾 Save';
+            // Remove from saved resources
+            this.resourcesState.savedResources = this.resourcesState.savedResources.filter(
+                r => r.title !== resourceTitle
+            );
+            localStorage.setItem('pdfTutor_savedResources', JSON.stringify(this.resourcesState.savedResources));
+        }
+    }
+    
+    saveToStudyPlan() {
+        const studyPlan = {
+            subject: this.resourcesState.detectedSubject,
+            resources: this.resourcesState.resources,
+            timestamp: new Date().toISOString(),
+            pdfTitle: this.files[0]?.name || 'Unknown PDF'
+        };
+        
+        const savedPlans = JSON.parse(localStorage.getItem('pdfTutor_studyPlans') || '[]');
+        savedPlans.push(studyPlan);
+        localStorage.setItem('pdfTutor_studyPlans', JSON.stringify(savedPlans));
+        
+        alert('Study plan saved successfully!');
+    }
+    
+    exportResourcesList() {
+        let exportText = `Study Resources for: ${this.resourcesState.detectedSubject}\n`;
+        exportText += `Generated on: ${new Date().toLocaleString()}\n\n`;
+        
+        Object.entries(this.resourcesState.resources).forEach(([category, resources]) => {
+            exportText += `=== ${category.toUpperCase()} RESOURCES ===\n`;
+            resources.forEach(resource => {
+                exportText += `• ${resource.title}\n`;
+                exportText += `  Description: ${resource.description}\n`;
+                exportText += `  Source: ${resource.source}\n`;
+                exportText += `  URL: ${resource.url}\n`;
+                exportText += `  Type: ${resource.type}\n\n`;
+            });
+        });
+        
+        // Download as text file
+        const blob = new Blob([exportText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `resources-${this.resourcesState.detectedSubject}-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    updateSubjectInfo() {
+        const subjectElement = document.getElementById('detectedSubject');
+        const confidenceElement = document.getElementById('confidenceScore');
+        
+        if (subjectElement) {
+            subjectElement.textContent = this.resourcesState.detectedSubject || 'Unknown';
+        }
+        
+        if (confidenceElement) {
+            confidenceElement.textContent = `${this.resourcesState.confidence || 0}%`;
         }
     }
     
