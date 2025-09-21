@@ -901,9 +901,11 @@ Simplified notes:`;
         
         const quizSidebar = document.getElementById('quizSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (quizSidebar) {
             quizSidebar.classList.add('open');
             if (notesArea) notesArea.classList.add('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.add('sidebar-open');
             this.quizState.isOpen = true;
             this.showQuizGenerationSection();
         }
@@ -912,9 +914,11 @@ Simplified notes:`;
     closeQuizSidebar() {
         const quizSidebar = document.getElementById('quizSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (quizSidebar) {
             quizSidebar.classList.remove('open');
             if (notesArea) notesArea.classList.remove('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.remove('sidebar-open');
             this.quizState.isOpen = false;
         }
     }
@@ -1612,7 +1616,7 @@ Generate ${questionCount} questions:`;
         if (this.quizState.currentQuestion >= this.quizState.questions.length) {
             this.showQuizResults();
         } else {
-            this.displayCurrentQuestion();
+            this.showQuizQuestionsSection();
         }
     }
     
@@ -2457,9 +2461,11 @@ Generate ${questionCount} questions:`;
         
         const flashcardsSidebar = document.getElementById('flashcardsSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (flashcardsSidebar) {
             flashcardsSidebar.classList.add('open');
             if (notesArea) notesArea.classList.add('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.add('sidebar-open');
             this.flashcardState.isOpen = true;
             this.showFlashcardsGenerationSection();
         }
@@ -2468,9 +2474,11 @@ Generate ${questionCount} questions:`;
     closeFlashcardsSidebar() {
         const flashcardsSidebar = document.getElementById('flashcardsSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (flashcardsSidebar) {
             flashcardsSidebar.classList.remove('open');
             if (notesArea) notesArea.classList.remove('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.remove('sidebar-open');
             this.flashcardState.isOpen = false;
         }
     }
@@ -3480,18 +3488,37 @@ Generate ${cardCount} flashcards:`;
     }
     
     clearNotes() {
-        if (confirm('Are you sure you want to clear all notes? This action cannot be undone.')) {
+        if (confirm('Are you sure you want to clear ALL notes? This will delete the current note AND all saved notes. This action cannot be undone.')) {
             const notesEditor = document.getElementById('notesEditor');
             const autoSaveStatus = document.getElementById('autoSaveStatus');
+            const aiSearchInput = document.getElementById('aiSearchInput');
+            const aiSearchResults = document.getElementById('aiSearchResults');
             
+            // Clear current note editor
             if (notesEditor) {
                 notesEditor.innerHTML = '<p>Start typing your notes here...</p>';
                 this.updateWordCount();
                 this.saveNotesToStorage();
             }
             
+            // Clear AI search input and results
+            if (aiSearchInput) {
+                aiSearchInput.value = '';
+            }
+            
+            if (aiSearchResults) {
+                aiSearchResults.style.display = 'none';
+                aiSearchResults.innerHTML = '';
+            }
+            
+            // Clear ALL saved notes from localStorage
+            localStorage.removeItem('pdfTutor_savedNotes');
+            
+            // Update the saved notes sidebar to show empty state
+            this.updateSavedNotesList();
+            
             if (autoSaveStatus) {
-                autoSaveStatus.textContent = 'Cleared';
+                autoSaveStatus.textContent = 'All notes cleared';
                 autoSaveStatus.className = 'auto-save';
                 
                 setTimeout(() => {
@@ -4215,9 +4242,11 @@ User's Question: ${query}`;
         
         const diagramsSidebar = document.getElementById('diagramsSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (diagramsSidebar) {
             diagramsSidebar.classList.add('open');
             if (notesArea) notesArea.classList.add('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.add('sidebar-open');
             this.diagramState.isOpen = true;
             this.showDiagramsGenerationSection();
         }
@@ -4226,9 +4255,11 @@ User's Question: ${query}`;
     closeDiagramsSidebar() {
         const diagramsSidebar = document.getElementById('diagramsSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (diagramsSidebar) {
             diagramsSidebar.classList.remove('open');
             if (notesArea) notesArea.classList.remove('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.remove('sidebar-open');
             this.diagramState.isOpen = false;
         }
     }
@@ -4752,7 +4783,8 @@ Generate ${diagramType} diagram:`;
         this.resourcesState = {
             isOpen: false,
             detectedSubject: null,
-            video: null,
+            searchTerms: [],
+            description: null,
             savedResources: JSON.parse(localStorage.getItem('pdfTutor_savedResources') || '[]')
         };
         
@@ -4805,9 +4837,11 @@ Generate ${diagramType} diagram:`;
         
         const resourcesSidebar = document.getElementById('resourcesSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (resourcesSidebar) {
             resourcesSidebar.classList.add('open');
             if (notesArea) notesArea.classList.add('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.add('sidebar-open');
             this.resourcesState.isOpen = true;
             this.showResourcesAnalysisSection();
             // Start analysis immediately
@@ -4818,9 +4852,11 @@ Generate ${diagramType} diagram:`;
     closeResourcesSidebar() {
         const resourcesSidebar = document.getElementById('resourcesSidebar');
         const notesArea = document.querySelector('.notes-area');
+        const toolNavigation = document.querySelector('.tool-navigation');
         if (resourcesSidebar) {
             resourcesSidebar.classList.remove('open');
             if (notesArea) notesArea.classList.remove('sidebar-open');
+            if (toolNavigation) toolNavigation.classList.remove('sidebar-open');
             this.resourcesState.isOpen = false;
         }
     }
@@ -4846,30 +4882,40 @@ Generate ${diagramType} diagram:`;
         const sidebarContent = document.getElementById('resourcesSidebarContent');
         if (!sidebarContent) return;
         
-        const video = this.resourcesState.video;
         const subject = this.resourcesState.detectedSubject;
+        const searchTerms = this.resourcesState.searchTerms;
+        const description = this.resourcesState.description;
+        
+        // Generate YouTube search links
+        const searchLinks = searchTerms.map(term => {
+            const encodedTerm = encodeURIComponent(term);
+            const youtubeUrl = `https://www.youtube.com/results?search_query=${encodedTerm}`;
+            return `
+                <div class="search-link-card">
+                    <h5>🔍 ${term}</h5>
+                    <a href="${youtubeUrl}" target="_blank" class="search-link">
+                        🎥 Search YouTube
+                    </a>
+                </div>
+            `;
+        }).join('');
         
         sidebarContent.innerHTML = `
             <div class="sidebar-section">
                 <div class="subject-info">
                     <h4>📚 ${subject || 'Topic'}</h4>
-                    </div>
-                    </div>
-            
-            <div class="video-section">
-                ${video ? `
-                    <div class="video-card">
-                        <h5>🎥 ${video.title}</h5>
-                        <p class="video-description">${video.description}</p>
-                        <a href="${video.url}" target="_blank" class="video-link">
-                            ▶️ Watch Video
-                        </a>
+                    ${description ? `<p class="topic-description">${description}</p>` : ''}
                 </div>
-                ` : '<p>No video found for this topic.</p>'}
+            </div>
+            
+            <div class="search-section">
+                <h5>🎯 YouTube Search Terms</h5>
+                <p class="search-instruction">Click any search term to find relevant videos on YouTube:</p>
+                ${searchLinks || '<p>No search terms generated for this topic.</p>'}
             </div>
             
             <div class="sidebar-actions">
-                <button id="refresh-resources-btn" class="sidebar-btn secondary">🔄 Find New Video</button>
+                <button id="refresh-resources-btn" class="sidebar-btn secondary">🔄 Generate New Search Terms</button>
             </div>
         `;
         
@@ -4977,7 +5023,7 @@ Generate ${diagramType} diagram:`;
             return;
         }
         
-        this.showAnalysisSection();
+        this.showResourcesAnalysisSection();
         
         try {
             // Extract text from PDF
@@ -4991,13 +5037,35 @@ Generate ${diagramType} diagram:`;
             const analysisResult = await this.analyzeSubjectAndFindResources(pdfText);
             
             this.resourcesState.detectedSubject = analysisResult.subject;
-            this.resourcesState.video = analysisResult.video;
+            this.resourcesState.searchTerms = analysisResult.searchTerms || [];
+            this.resourcesState.description = analysisResult.description;
             
             this.showResourcesDisplaySection();
             
         } catch (error) {
             console.error('Resources analysis error:', error);
-            alert('Error analyzing PDF and finding resources: ' + error.message);
+            
+            // Show error in the sidebar instead of alert
+            const sidebarContent = document.getElementById('resourcesSidebarContent');
+            if (sidebarContent) {
+                sidebarContent.innerHTML = `
+                    <div class="sidebar-section">
+                        <h4>❌ Analysis Error</h4>
+                        <p>There was an error analyzing your PDF content.</p>
+                        <p class="error-details">${error.message}</p>
+                    </div>
+                    
+                    <div class="sidebar-actions">
+                        <button id="retry-analysis-btn" class="sidebar-btn">🔄 Try Again</button>
+                    </div>
+                `;
+                
+                // Bind retry button
+                const retryBtn = document.getElementById('retry-analysis-btn');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', () => this.analyzeAndFindResources());
+                }
+            }
         }
     }
     
@@ -5012,9 +5080,12 @@ Generate ${diagramType} diagram:`;
             return cached;
         }
         
-        const prompt = `Find the main topic of this text and suggest ONE educational video. Return JSON:
+        const prompt = `Analyze this text and identify the main educational topics. Generate specific YouTube search terms that would find relevant educational videos.
 
-{"subject": "topic", "video": {"title": "Video Title", "url": "https://youtube.com/watch?v=...", "description": "Brief description"}}
+IMPORTANT: You must respond with ONLY valid JSON in this exact format:
+{"subject": "main topic", "searchTerms": ["search term 1", "search term 2", "search term 3"], "description": "Brief description of what to search for"}
+
+Do not include any other text, explanations, or formatting. Only return the JSON object.
 
 Text: ${pdfText}`;
 
@@ -5032,7 +5103,7 @@ Text: ${pdfText}`;
                             }]
                         }],
                         generationConfig: {
-                            temperature: 1.0,
+                            temperature: 0.3,
                             topK: 40,
                             topP: 0.95,
                             maxOutputTokens: 512,
@@ -5048,22 +5119,44 @@ Text: ${pdfText}`;
                 
                 if (data.candidates && data.candidates[0] && data.candidates[0].content) {
                     const responseText = data.candidates[0].content.parts[0].text.trim();
+                    console.log('Gemini response:', responseText);
                     
                     // Try to parse JSON from the response
                     try {
-                        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                        if (jsonMatch) {
-                            const analysisResult = JSON.parse(jsonMatch[0]);
-                            // Cache the successful response
-                            this.setCachedResponse(cacheKey, analysisResult);
-                            return analysisResult;
-                        } else {
-                            throw new Error('No valid JSON found in response');
+                        // First try to parse the entire response as JSON
+                        let analysisResult;
+                        try {
+                            analysisResult = JSON.parse(responseText);
+                        } catch (directParseError) {
+                            // If direct parsing fails, try to extract JSON from the response
+                            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                            if (jsonMatch) {
+                                analysisResult = JSON.parse(jsonMatch[0]);
+                            } else {
+                                throw new Error('No valid JSON found in response');
+                            }
                         }
+                        
+                        console.log('Parsed analysis result:', analysisResult);
+                        
+                        // Validate required fields
+                        if (!analysisResult.subject || !analysisResult.searchTerms || !Array.isArray(analysisResult.searchTerms)) {
+                            throw new Error('Invalid response format: missing required fields (subject, searchTerms)');
+                        }
+                        
+                        // Ensure searchTerms is not empty
+                        if (analysisResult.searchTerms.length === 0) {
+                            throw new Error('No search terms generated');
+                        }
+                        
+                        // Cache the successful response
+                        this.setCachedResponse(cacheKey, analysisResult);
+                        return analysisResult;
+                        
                     } catch (parseError) {
                         console.error('JSON parse error:', parseError);
                         console.log('Raw response:', responseText);
-                        throw new Error('Failed to parse analysis result from AI response');
+                        throw new Error(`Failed to parse analysis result: ${parseError.message}`);
                     }
                 } else {
                     throw new Error('Invalid response format from Gemini API');
