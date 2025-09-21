@@ -1,7 +1,7 @@
 {
-  "name": "pdf-uploader",
+  "name": "pdf-tutor",
   "version": "1.0.0",
-  "description": "A simple website for uploading PDF documents",
+  "description": "PDF Tutor - AI-powered learning companion for PDF documents",
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 3000 -o",
@@ -9,9 +9,12 @@
   },
   "keywords": [
     "pdf",
-    "upload",
-    "document",
-    "website"
+    "tutor",
+    "ai",
+    "learning",
+    "education",
+    "quiz",
+    "flashcards"
   ],
   "author": "",
   "license": "MIT",

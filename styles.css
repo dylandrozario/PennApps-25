@@ -279,7 +279,7 @@ body {
 
 /* Tools Section */
 .tools-section {
-    margin-top: 6rem;
+    margin-top: 12rem;
     width: 100%;
     max-width: 1200px;
     padding: 0 2rem;
@@ -574,41 +574,7 @@ body {
     gap: 1rem;
 }
 
-.api-test-btn {
-    background: #007bff;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-}
 
-.api-test-btn:hover {
-    background: #0056b3;
-    transform: translateY(-1px);
-}
-
-.api-status {
-    background: #28a745;
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    min-width: 60px;
-    text-align: center;
-}
-
-.api-status.warning {
-    background: #ffc107;
-    color: #212529;
-}
-
-.api-status.error {
-    background: #dc3545;
-}
 
 .insert-new-doc-btn {
     background-color: #007bff;
@@ -821,8 +787,11 @@ body {
     justify-content: center;
     align-items: flex-start;
     padding: 2rem;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: auto;
     min-height: 0;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
 #pdfCanvas {
@@ -831,6 +800,21 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     border-radius: 8px;
     background-color: #ffffff;
+}
+
+/* Hide scrollbar for PDF container */
+.pdf-container-fullscreen::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* Hide scrollbar for notes sidebar */
+.notes-sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* Hide scrollbar for notes editor container */
+.notes-editor-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 /* Right Panel - Tools & Chat */
@@ -939,6 +923,8 @@ body {
     transition: left 0.3s ease;
     z-index: 999;
     overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
 .notes-sidebar.open {
@@ -1137,10 +1123,13 @@ body {
     border: 1px solid #404040;
     border-radius: 16px;
     overflow: hidden;
-    min-height: 400px;
+    min-height: 250px;
+    max-height: 300px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     max-width: 100%;
     box-sizing: border-box;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
 /* Notes Toolbar */
@@ -1428,9 +1417,9 @@ body {
     background: #404040;
     border: 1px solid #555555;
     border-radius: 24px;
-    padding: 0.75rem 1rem;
+    padding: 1rem 1.5rem;
     transition: border-color 0.2s ease;
-    max-width: 600px;
+    max-width: 700px;
     margin: 0 auto;
 }
 
@@ -1451,7 +1440,7 @@ body {
     background: transparent;
     border: none;
     color: #ffffff;
-    font-size: 1rem;
+    font-size: 1.1rem;
     outline: none;
     padding: 0;
 }
@@ -1617,12 +1606,6 @@ body {
     font-size: 1.2rem;
 }
 
-.api-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8rem;
-}
 
 .status-indicator {
     width: 8px;

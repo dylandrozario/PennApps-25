@@ -11,11 +11,9 @@ class PDFUploader {
         this.scale = 1.0;
         this.pdfjsReady = false;
         
-        // API rate limiting - Very aggressive to handle strict quotas
-        this.lastAPICall = 0;
-        this.minAPIDelay = 3000; // Minimum 3 seconds between API calls
-        this.apiCallCount = 0;
-        this.maxCallsPerMinute = 10; // Conservative limit
+        // Simple cache for API responses
+        this.apiCache = new Map();
+        
         
         this.initializeElements();
         this.bindEvents();
@@ -120,23 +118,7 @@ class PDFUploader {
             });
         }
         
-        // API Test button event
-        const apiTestBtn = document.getElementById('apiTestBtn');
-        if (apiTestBtn) {
-            apiTestBtn.addEventListener('click', () => {
-                this.testAPIConnection().catch(error => {
-                    console.error('API test failed:', error);
-                });
-            });
-        }
         
-        // API Status click to reset
-        const apiStatus = document.getElementById('apiStatus');
-        if (apiStatus) {
-            apiStatus.addEventListener('click', () => {
-                this.resetAPIRateLimit();
-            });
-        }
         
     }
     
@@ -1947,19 +1929,6 @@ Generate ${questionCount} questions:`;
     
     // Form Tool Methods
     initializeFormTool() {
-        // Create form button
-        const formButton = document.createElement('button');
-        formButton.className = 'btn btn-secondary form-btn tool-control-btn';
-        formButton.innerHTML = '📝';
-        formButton.title = 'Fill & Sign';
-        formButton.addEventListener('click', () => this.openFormDialog());
-        
-        // Add the button to the tool controls container
-        const toolControlsContainer = document.getElementById('tool-controls-container');
-        if (toolControlsContainer) {
-            toolControlsContainer.appendChild(formButton);
-        }
-        
         // Initialize form functionality
         this.initializeFormFunctionality();
     }
@@ -3607,7 +3576,7 @@ Generate ${cardCount} flashcards:`;
             // Add summary to notes editor
             const currentContent = notesEditor.innerHTML;
             const summarySection = `
-                <div class="ai-summary-section" style="margin-bottom: 1.5rem; padding: 1rem; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;">
+                <div class="ai-summary-section" style="margin-bottom: 1.5rem; padding: 1rem; border-left: 4px solid #007bff; border-radius: 4px;">
                     <h4 style="margin: 0 0 0.5rem 0; color: #007bff; font-size: 1rem;">📝 AI Summary</h4>
                     <p style="margin: 0; line-height: 1.6;">${summary}</p>
                     <small style="color: #6c757d; font-size: 0.8rem;">Generated on ${new Date().toLocaleString()}</small>
@@ -3719,129 +3688,26 @@ Generate ${cardCount} flashcards:`;
         return apiKey;
     }
 
-    // Method to test API connection
-    async testAPIConnection() {
-        try {
-            const apiKey = this.validateAPIKey();
-            this.showStatus('🔍 Testing API connection...', 'info');
-            
-            console.log('Testing API with key:', apiKey.substring(0, 10) + '...');
-            
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{
-                            text: 'Hello'
-                        }]
-                    }],
-                    generationConfig: {
-                        temperature: 0.1,
-                        maxOutputTokens: 10,
-                    }
-                })
-            });
 
-            console.log('API Response Status:', response.status);
-            console.log('API Response Headers:', Object.fromEntries(response.headers.entries()));
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.log('API Error Response:', errorText);
-                
-                if (response.status === 429) {
-                    throw new Error('API is rate limited. Please wait a few minutes and try again.');
-                } else if (response.status === 400) {
-                    throw new Error('Invalid API key or request format.');
-                } else if (response.status === 403) {
-                    throw new Error('API key does not have permission or quota exceeded.');
-                } else {
-                    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
-                }
-            }
-
-            const data = await response.json();
-            console.log('API Success Response:', data);
-            this.showStatus('✅ API connection successful!', 'success');
-            return true;
-        } catch (error) {
-            console.error('API Test Error:', error);
-            this.showStatus(`❌ API test failed: ${error.message}`, 'error');
-            throw error;
-        }
-    }
-
-    // Method to enforce delays between API calls
-    async enforceAPIRateLimit() {
-        const now = Date.now();
-        const timeSinceLastCall = now - this.lastAPICall;
-        
-        // Reset call count every minute
-        if (timeSinceLastCall > 60000) {
-            this.apiCallCount = 0;
-            this.updateAPIStatus();
-        }
-        
-        // Check if we've exceeded calls per minute
-        if (this.apiCallCount >= this.maxCallsPerMinute) {
-            const waitTime = 60000 - timeSinceLastCall; // Wait for minute to reset
-            console.log(`Rate limit: ${this.apiCallCount}/${this.maxCallsPerMinute} calls used. Waiting ${Math.round(waitTime/1000)}s...`);
-            this.showStatus(`Rate limit reached (${this.apiCallCount}/${this.maxCallsPerMinute} calls). Waiting ${Math.round(waitTime/1000)}s...`, 'warning');
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            this.apiCallCount = 0;
-        }
-        
-        // Enforce minimum delay between calls
-        if (timeSinceLastCall < this.minAPIDelay) {
-            const waitTime = this.minAPIDelay - timeSinceLastCall;
-            console.log(`Enforcing rate limit: waiting ${waitTime}ms before API call`);
-            this.showStatus(`Waiting ${Math.round(waitTime/1000)}s before API call...`, 'info');
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-        
-        this.lastAPICall = Date.now();
-        this.apiCallCount++;
-        this.updateAPIStatus();
-    }
     
-    // Method to update API status display
-    updateAPIStatus() {
-        const apiCallCountEl = document.getElementById('apiCallCount');
-        const apiMaxCallsEl = document.getElementById('apiMaxCalls');
-        const apiStatusEl = document.getElementById('apiStatus');
-        
-        if (apiCallCountEl) apiCallCountEl.textContent = this.apiCallCount;
-        if (apiMaxCallsEl) apiMaxCallsEl.textContent = this.maxCallsPerMinute;
-        
-        if (apiStatusEl) {
-            // Remove existing classes
-            apiStatusEl.classList.remove('warning', 'error');
-            
-            // Add appropriate class based on usage
-            if (this.apiCallCount >= this.maxCallsPerMinute * 0.8) {
-                apiStatusEl.classList.add('warning');
-            } else if (this.apiCallCount >= this.maxCallsPerMinute) {
-                apiStatusEl.classList.add('error');
-            }
-        }
-    }
     
-    // Method to reset API rate limit
-    resetAPIRateLimit() {
-        this.apiCallCount = 0;
-        this.lastAPICall = 0;
-        this.updateAPIStatus();
-        this.showStatus('🔄 API rate limit reset!', 'success');
-        setTimeout(() => this.hideStatus(), 2000);
+
+    // Simple cache for API responses
+    getCachedResponse(cacheKey) {
+        return this.apiCache.get(cacheKey);
+    }
+
+    setCachedResponse(cacheKey, response) {
+        // Limit cache size to prevent memory issues
+        if (this.apiCache.size > 50) {
+            const firstKey = this.apiCache.keys().next().value;
+            this.apiCache.delete(firstKey);
+        }
+        this.apiCache.set(cacheKey, response);
     }
 
     // Utility method for API calls with retry logic
     async makeAPICallWithRetry(apiCall, maxRetries = 3, baseDelay = 5000) {
-        // Enforce rate limiting before making the call
-        await this.enforceAPIRateLimit();
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -4759,12 +4625,7 @@ Generate ${diagramType} diagram:`;
         this.resourcesState = {
             isOpen: false,
             detectedSubject: null,
-            confidence: 0,
-            resources: {
-                theory: [],
-                practice: [],
-                drills: []
-            },
+            video: null,
             savedResources: JSON.parse(localStorage.getItem('pdfTutor_savedResources') || '[]')
         };
         
@@ -4773,26 +4634,19 @@ Generate ${diagramType} diagram:`;
     }
     
     bindResourcesEvents() {
-        const closeResourcesBtn = document.getElementById('close-resources-btn');
+        const closeResourcesBtn = document.getElementById('close-resources-sidebar');
         const refreshResourcesBtn = document.getElementById('refresh-resources-btn');
         const saveStudyPlanBtn = document.getElementById('save-study-plan-btn');
         const exportResourcesBtn = document.getElementById('export-resources-btn');
         
         if (closeResourcesBtn) {
-            closeResourcesBtn.addEventListener('click', () => this.closeResourcesDialog());
+            closeResourcesBtn.addEventListener('click', () => this.closeResourcesSidebar());
         }
         
         if (refreshResourcesBtn) {
             refreshResourcesBtn.addEventListener('click', () => this.analyzeAndFindResources());
         }
         
-        if (saveStudyPlanBtn) {
-            saveStudyPlanBtn.addEventListener('click', () => this.saveToStudyPlan());
-        }
-        
-        if (exportResourcesBtn) {
-            exportResourcesBtn.addEventListener('click', () => this.exportResourcesList());
-        }
         
         // Close dialog on background click
         const resourcesDialog = document.getElementById('resourcesDialog');
@@ -4865,30 +4719,33 @@ Generate ${diagramType} diagram:`;
         const sidebarContent = document.getElementById('resourcesSidebarContent');
         if (!sidebarContent) return;
         
+        const video = this.resourcesState.video;
+        const subject = this.resourcesState.detectedSubject;
+        
         sidebarContent.innerHTML = `
             <div class="sidebar-section">
                 <div class="subject-info">
-                    <div class="subject-badge">
-                        <span id="detectedSubject">${this.resourcesState.detectedSubject || 'Subject'}</span>
-                    </div>
-                    <div class="confidence-score">
-                        Confidence: <span id="confidenceScore">${this.resourcesState.confidence || 85}%</span>
-                    </div>
+                    <h4>📚 ${subject || 'Topic'}</h4>
                 </div>
             </div>
             
-            <div class="resources-categories">
-                <!-- Resources will be populated here -->
+            <div class="video-section">
+                ${video ? `
+                    <div class="video-card">
+                        <h5>🎥 ${video.title}</h5>
+                        <p class="video-description">${video.description}</p>
+                        <a href="${video.url}" target="_blank" class="video-link">
+                            ▶️ Watch Video
+                        </a>
+                    </div>
+                ` : '<p>No video found for this topic.</p>'}
             </div>
             
             <div class="sidebar-actions">
-                <button id="refresh-resources-btn" class="sidebar-btn secondary">🔄 Find More</button>
-                <button id="save-study-plan-btn" class="sidebar-btn">💾 Save Plan</button>
-                <button id="export-resources-btn" class="sidebar-btn secondary">📤 Export</button>
+                <button id="refresh-resources-btn" class="sidebar-btn secondary">🔄 Find New Video</button>
             </div>
         `;
         
-        this.displayResourcesInSidebar();
         this.bindResourcesSidebarEvents();
     }
     
@@ -4977,13 +4834,6 @@ Generate ${diagramType} diagram:`;
             refreshBtn.addEventListener('click', () => this.analyzeAndFindResources());
         }
         
-        if (savePlanBtn) {
-            savePlanBtn.addEventListener('click', () => this.saveToStudyPlan());
-        }
-        
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportResourcesList());
-        }
     }
     
     showResourcesSection() {
@@ -5014,8 +4864,7 @@ Generate ${diagramType} diagram:`;
             const analysisResult = await this.analyzeSubjectAndFindResources(pdfText);
             
             this.resourcesState.detectedSubject = analysisResult.subject;
-            this.resourcesState.confidence = analysisResult.confidence;
-            this.resourcesState.resources = analysisResult.resources;
+            this.resourcesState.video = analysisResult.video;
             
             this.showResourcesDisplaySection();
             
@@ -5026,56 +4875,21 @@ Generate ${diagramType} diagram:`;
     }
     
     async analyzeSubjectAndFindResources(pdfText) {
-        const apiKey = window.CONFIG?.GEMINI_API_KEY || 'YOUR_GEMINI_API_KEY_HERE';
-        if (apiKey === 'YOUR_GEMINI_API_KEY_HERE') {
-            throw new Error('Please configure your Gemini API key in config.js');
+        const apiKey = this.validateAPIKey();
+        
+        // Create cache key based on content hash
+        const cacheKey = `resources_${pdfText.substring(0, 100)}`;
+        const cached = this.getCachedResponse(cacheKey);
+        if (cached) {
+            console.log('Using cached resources response');
+            return cached;
         }
         
-        const prompt = `Analyze the following PDF text and:
-1. Detect the primary subject/topic (e.g., mathematics, history, biology, chemistry, physics, literature, etc.)
-2. Provide a confidence score (0-100) for the subject detection
-3. Suggest relevant educational resources categorized by type
+        const prompt = `Find the main topic of this text and suggest ONE educational video. Return JSON:
 
-Subject Detection:
-- Identify the main academic subject or field
-- Consider key concepts, terminology, and content structure
-- Provide confidence based on content clarity and specificity
+{"subject": "topic", "video": {"title": "Video Title", "url": "https://youtube.com/watch?v=...", "description": "Brief description"}}
 
-Resource Categories:
-- Theory & Concepts: Videos (Khan Academy, CrashCourse), articles, Wikipedia links
-- Examples & Practice: Practice problems, example walkthroughs, interactive exercises
-- Drills & Exercises: Worksheets, quizzes, flashcards (Quizlet), study guides
-
-Requirements:
-1. Each resource should have: title, description, source, URL, type
-2. Focus on high-quality, free educational resources
-3. Include 3-5 resources per category
-4. Make URLs realistic and educational
-5. Prioritize well-known educational platforms
-
-Format as JSON:
-{
-  "subject": "detected subject",
-  "confidence": 85,
-  "resources": {
-    "theory": [
-      {
-        "title": "Resource Title",
-        "description": "Brief description",
-        "source": "Khan Academy",
-        "url": "https://example.com",
-        "type": "video"
-      }
-    ],
-    "practice": [...],
-    "drills": [...]
-  }
-}
-
-PDF Text:
-${pdfText}
-
-Analyze and suggest resources:`;
+Text: ${pdfText}`;
 
         try {
             return await this.makeAPICallWithRetry(async () => {
@@ -5094,7 +4908,7 @@ Analyze and suggest resources:`;
                             temperature: 0.7,
                             topK: 40,
                             topP: 0.95,
-                            maxOutputTokens: 2048,
+                            maxOutputTokens: 512,
                         }
                     })
                 });
@@ -5113,6 +4927,8 @@ Analyze and suggest resources:`;
                         const jsonMatch = responseText.match(/\{[\s\S]*\}/);
                         if (jsonMatch) {
                             const analysisResult = JSON.parse(jsonMatch[0]);
+                            // Cache the successful response
+                            this.setCachedResponse(cacheKey, analysisResult);
                             return analysisResult;
                         } else {
                             throw new Error('No valid JSON found in response');
@@ -5230,60 +5046,6 @@ Analyze and suggest resources:`;
         }
     }
     
-    saveToStudyPlan() {
-        const studyPlan = {
-            subject: this.resourcesState.detectedSubject,
-            resources: this.resourcesState.resources,
-            timestamp: new Date().toISOString(),
-            pdfTitle: this.files[0]?.name || 'Unknown PDF'
-        };
-        
-        const savedPlans = JSON.parse(localStorage.getItem('pdfTutor_studyPlans') || '[]');
-        savedPlans.push(studyPlan);
-        localStorage.setItem('pdfTutor_studyPlans', JSON.stringify(savedPlans));
-        
-        alert('Study plan saved successfully!');
-    }
-    
-    exportResourcesList() {
-        let exportText = `Study Resources for: ${this.resourcesState.detectedSubject}\n`;
-        exportText += `Generated on: ${new Date().toLocaleString()}\n\n`;
-        
-        Object.entries(this.resourcesState.resources).forEach(([category, resources]) => {
-            exportText += `=== ${category.toUpperCase()} RESOURCES ===\n`;
-            resources.forEach(resource => {
-                exportText += `• ${resource.title}\n`;
-                exportText += `  Description: ${resource.description}\n`;
-                exportText += `  Source: ${resource.source}\n`;
-                exportText += `  URL: ${resource.url}\n`;
-                exportText += `  Type: ${resource.type}\n\n`;
-            });
-        });
-        
-        // Download as text file
-        const blob = new Blob([exportText], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `resources-${this.resourcesState.detectedSubject}-${new Date().toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-    
-    updateSubjectInfo() {
-        const subjectElement = document.getElementById('detectedSubject');
-        const confidenceElement = document.getElementById('confidenceScore');
-        
-        if (subjectElement) {
-            subjectElement.textContent = this.resourcesState.detectedSubject || 'Unknown';
-        }
-        
-        if (confidenceElement) {
-            confidenceElement.textContent = `${this.resourcesState.confidence || 0}%`;
-        }
-    }
     
 }
 
@@ -5291,11 +5053,4 @@ Analyze and suggest resources:`;
 document.addEventListener('DOMContentLoaded', () => {
     window.pdfUploader = new PDFUploader();
     
-    // Debug function to test PDF viewer
-    window.testPDFViewer = () => {
-        console.log('Testing PDF viewer...');
-        console.log('PDF.js loaded:', typeof pdfjsLib !== 'undefined');
-        console.log('PDF viewer section:', document.getElementById('pdfViewerSection'));
-        console.log('PDF canvas:', document.getElementById('pdfCanvas'));
-    };
 });

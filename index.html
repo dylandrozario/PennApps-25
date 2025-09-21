@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Uploader</title>
+    <title>PDF Tutor</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="summarizer-button/note-taking-button.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -46,11 +46,6 @@
                     </div>
                     <h3>Drop your PDF here</h3>
                     <p>or <span class="browse-link">click to browse files</span></p>
-                    <div class="upload-features">
-                        <span class="feature-tag">📄 PDF</span>
-                        <span class="feature-tag">🔒 Secure</span>
-                        <span class="feature-tag">⚡ Fast</span>
-                    </div>
                     <input type="file" id="fileInput" accept=".pdf">
                 </div>
             </div>
@@ -101,8 +96,6 @@
                 <h1>PDF TUTOR</h1>
             </div>
             <div class="header-actions">
-                <button class="api-test-btn" id="apiTestBtn" title="Test API Connection">🔗 Test API</button>
-                <div class="api-status" id="apiStatus" title="API Rate Limit Status">📊 <span id="apiCallCount">0</span>/<span id="apiMaxCalls">10</span></div>
                 <button class="insert-new-doc-btn" id="insertNewDocBtn">📁 Insert New Doc</button>
                 <button class="share-btn" id="shareBtn">Share</button>
                 <div class="user-profile" id="userProfile">👤</div>
@@ -223,11 +216,7 @@
                         <!-- ChatGPT-style AI Search -->
                         <div class="ai-search-container">
                             <div class="ai-search-input-container">
-                                <div class="ai-search-icon">+</div>
                                 <input type="text" id="aiSearchInput" class="ai-search-input" placeholder="Ask anything">
-                                <div class="ai-search-actions">
-                                    <button class="ai-action-btn" title="Voice Input">🎤</button>
-                                </div>
                             </div>
                             <div id="aiSearchResults" class="ai-search-results" style="display: none;"></div>
                         </div>
